@@ -5,7 +5,16 @@
  * via a module.exports shim that only activates under Node/Jest.
  */
 
-const { gbp, fetchJson, renderSummary, renderAccounts, renderMortgages } = require("./app.js");
+const {
+    gbp,
+    formatDate,
+    initials,
+    fetchJson,
+    renderSummary,
+    renderAccounts,
+    renderMortgages,
+    renderTransactions,
+} = require("./app.js");
 
 describe("gbp() currency formatter", () => {
     test("formats a whole number as GBP", () => {
@@ -55,25 +64,77 @@ describe("renderSummary()", () => {
     });
 });
 
+describe("formatDate()", () => {
+    test("formats an ISO date as DD Mon YYYY", () => {
+        expect(formatDate("2026-07-16")).toBe("16 Jul 2026");
+    });
+
+    test("returns the input unchanged when not a valid date", () => {
+        expect(formatDate("not-a-date")).toBe("not-a-date");
+    });
+});
+
+describe("initials()", () => {
+    test("takes first letters of the first two words", () => {
+        expect(initials("Everyday Current Account")).toBe("EC");
+    });
+
+    test("uses first two letters for a single word", () => {
+        expect(initials("SAVINGS")).toBe("SA");
+    });
+});
+
 describe("renderAccounts()", () => {
-    test("renders one card per account with nickname and balance", () => {
+    test("renders one clickable row per account with nickname and balance", () => {
         document.body.innerHTML = `<div id="accounts-list"></div>`;
 
         renderAccounts([
             {
+                id: "acc-001",
                 nickname: "Everyday Current Account",
                 type: "CURRENT",
+                product: "Select Current Account",
                 sortCode: "60-16-13",
                 accountNumberMasked: "****4471",
                 balance: 3245.67,
-                availableBalance: 3245.67,
+                availableBalance: 3745.67,
             },
         ]);
 
         const html = document.getElementById("accounts-list").innerHTML;
         expect(html).toContain("Everyday Current Account");
         expect(html).toContain("£3,245.67");
-        expect(document.querySelectorAll(".account-card")).toHaveLength(1);
+        const rows = document.querySelectorAll(".account-row");
+        expect(rows).toHaveLength(1);
+        expect(rows[0].getAttribute("data-account-id")).toBe("acc-001");
+    });
+});
+
+describe("renderTransactions()", () => {
+    test("renders a row per transaction with signed amounts", () => {
+        document.body.innerHTML = `<div id="drawer-transactions"></div>`;
+
+        renderTransactions([
+            {
+                id: "txn-1", description: "Salary - Harness Ltd", category: "Income",
+                date: "2026-07-14", type: "CREDIT", amount: 2650, balanceAfter: 3303.71,
+            },
+            {
+                id: "txn-2", description: "Sainsbury's Superstore", category: "Groceries",
+                date: "2026-07-12", type: "DEBIT", amount: -61.83, balanceAfter: 749.91,
+            },
+        ]);
+
+        const container = document.getElementById("drawer-transactions");
+        expect(container.querySelectorAll(".txn-row")).toHaveLength(2);
+        expect(container.querySelector(".txn-amount.credit").textContent).toContain("+£2,650.00");
+        expect(container.querySelector(".txn-amount.debit").textContent).toContain("£61.83");
+    });
+
+    test("shows an empty state when there are no transactions", () => {
+        document.body.innerHTML = `<div id="drawer-transactions"></div>`;
+        renderTransactions([]);
+        expect(document.getElementById("drawer-transactions").innerHTML).toContain("No recent transactions");
     });
 });
 

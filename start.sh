@@ -14,11 +14,17 @@ cd "$(dirname "$0")"
 # --- Config ---------------------------------------------------------------
 BACKEND_IMAGE="ci-banking-backend"
 FRONTEND_IMAGE="ci-banking-frontend"
+FRAUD_IMAGE="ci-banking-fraud-check"
 BACKEND_NAME="ci-backend"
 FRONTEND_NAME="ci-frontend"
+FRAUD_NAME="ci-fraud-check"
+NETWORK="ci-banking-net"
 BACKEND_PORT="8080"
 FRONTEND_PORT="8081"
+FRAUD_PORT="9090"
 API_BASE_URL="http://localhost:${BACKEND_PORT}"
+# Backend reaches the downstream by container name over the shared docker network.
+DOWNSTREAM_URL="http://${FRAUD_NAME}:9090"
 # Apple Silicon: the backend's alpine base image has no arm64 build, so we
 # build/run for amd64 under emulation. Override with PLATFORM=linux/arm64 if desired.
 PLATFORM="${PLATFORM:-linux/amd64}"
@@ -56,17 +62,25 @@ build_if_needed() {
 
 build_if_needed "$BACKEND_IMAGE" backend/
 build_if_needed "$FRONTEND_IMAGE" frontend/
+build_if_needed "$FRAUD_IMAGE" fraud-check-service/
 
 # --- 3. (Re)start containers ----------------------------------------------
+log "Ensuring docker network ${NETWORK} exists..."
+docker network create "$NETWORK" >/dev/null 2>&1 || true
+
 log "Removing any existing containers..."
-docker rm -f "$BACKEND_NAME" "$FRONTEND_NAME" >/dev/null 2>&1 || true
+docker rm -f "$BACKEND_NAME" "$FRONTEND_NAME" "$FRAUD_NAME" >/dev/null 2>&1 || true
+
+log "Starting downstream fraud-check on :${FRAUD_PORT}..."
+docker run -d --platform "$PLATFORM" --name "$FRAUD_NAME" --network "$NETWORK" \
+  -p "${FRAUD_PORT}:9090" "$FRAUD_IMAGE" >/dev/null
 
 log "Starting backend on :${BACKEND_PORT}..."
-docker run -d --platform "$PLATFORM" --name "$BACKEND_NAME" \
-  -p "${BACKEND_PORT}:8080" "$BACKEND_IMAGE" >/dev/null
+docker run -d --platform "$PLATFORM" --name "$BACKEND_NAME" --network "$NETWORK" \
+  -p "${BACKEND_PORT}:8080" -e DOWNSTREAM_URL="$DOWNSTREAM_URL" "$BACKEND_IMAGE" >/dev/null
 
 log "Starting frontend on :${FRONTEND_PORT}..."
-docker run -d --platform "$PLATFORM" --name "$FRONTEND_NAME" \
+docker run -d --platform "$PLATFORM" --name "$FRONTEND_NAME" --network "$NETWORK" \
   -p "${FRONTEND_PORT}:8081" -e API_BASE_URL="$API_BASE_URL" "$FRONTEND_IMAGE" >/dev/null
 
 # --- 4. Wait for the backend to be healthy --------------------------------
@@ -83,5 +97,6 @@ echo
 log "Up and running:"
 echo "   Frontend : http://localhost:${FRONTEND_PORT}   <- open this"
 echo "   Backend  : http://localhost:${BACKEND_PORT}/api/summary"
+echo "   Fraud    : http://localhost:${BACKEND_PORT}/api/fraud-check   (integration -> downstream)"
 echo "   Logs     : docker logs -f ${BACKEND_NAME}"
 echo "   Stop     : ./stop.sh"
