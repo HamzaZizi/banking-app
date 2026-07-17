@@ -9,11 +9,22 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  metrics:
+    tags:
+      # Tag every metric with the app name so Prometheus/CV can filter per service.
+      application: ci-banking-backend
+  distribution:
+    # Emit latency histograms + p95/p99 for HTTP requests, which chaos APM probes
+    # and Continuous Verification query for SLA analysis.
+    percentiles-histogram:
+      http.server.requests: true
+    percentiles:
+      http.server.requests: 0.95, 0.99
 
 cibanking:
   cors:
