@@ -6,20 +6,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 /**
- * Configures the HTTP client used to call the downstream FX Rates service.
- * The base URL is injected from DOWNSTREAM_URL so it can differ per environment
- * (dev/sit/staging/prod each point at their own rates-service).
+ * Configures the HTTP client used to call the downstream Payments Fraud Check
+ * service. The base URL is injected from DOWNSTREAM_URL so it can differ per
+ * environment (dev/sit/staging/prod each point at their own fraud-check service).
  */
 @Configuration
 public class DownstreamConfig {
 
-    @Value("${downstream.rates.url:http://localhost:9090}")
-    private String ratesBaseUrl;
+    @Value("${downstream.fraudcheck.url:http://localhost:9090}")
+    private String fraudCheckBaseUrl;
 
     @Bean
-    public RestClient ratesRestClient() {
+    public RestClient fraudRestClient() {
         return RestClient.builder()
-                .baseUrl(ratesBaseUrl)
+                .baseUrl(fraudCheckBaseUrl)
                 .build();
     }
 }

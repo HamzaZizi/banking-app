@@ -1,5 +1,7 @@
 package com.harness.demo.cibanking.service;
 
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -7,20 +9,17 @@ import org.springframework.web.client.RestClient;
 
 import java.util.Map;
 
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for the downstream FX Rates integration. A MockWebServer stands in
- * for the real rates-service so we can exercise both the healthy and the
- * unavailable paths without a live dependency.
+ * Unit tests for the downstream Payments Fraud Check integration. A MockWebServer
+ * stands in for the real fraud-check service so we can exercise both the healthy
+ * and the unavailable paths without a live dependency.
  */
-class RatesServiceTest {
+class FraudCheckServiceTest {
 
     private MockWebServer server;
-    private RatesService service;
+    private FraudCheckService service;
 
     @BeforeEach
     void setUp() throws java.io.IOException {
@@ -29,7 +28,7 @@ class RatesServiceTest {
         RestClient client = RestClient.builder()
                 .baseUrl(server.url("/").toString())
                 .build();
-        service = new RatesService(client);
+        service = new FraudCheckService(client);
     }
 
     @AfterEach
@@ -44,23 +43,23 @@ class RatesServiceTest {
     }
 
     @Test
-    void getRates_returnsOkWhenDownstreamResponds() {
+    void check_returnsOkWhenDownstreamResponds() {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
-                .setBody("{\"base\":\"GBP\",\"rates\":{\"USD\":1.28}}"));
+                .setBody("{\"decision\":\"APPROVE\",\"riskScore\":12}"));
 
-        Map<String, Object> result = service.getRates();
+        Map<String, Object> result = service.check();
 
         assertThat(result.get("integration")).isEqualTo("ok");
         assertThat(result.get("source")).isEqualTo("downstream");
-        assertThat(result).containsKey("rates");
+        assertThat(result).containsKey("result");
     }
 
     @Test
-    void getRates_returnsUnavailableWhenDownstreamErrors() {
+    void check_returnsUnavailableWhenDownstreamErrors() {
         server.enqueue(new MockResponse().setResponseCode(500));
 
-        Map<String, Object> result = service.getRates();
+        Map<String, Object> result = service.check();
 
         assertThat(result.get("integration")).isEqualTo("unavailable");
         assertThat(result).containsKey("error");
