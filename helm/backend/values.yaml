@@ -34,7 +34,7 @@ resources:
 env:
   config:
     CORS_ALLOWED_ORIGINS: "*"
-    # Downstream FX Rates service, reachable in-namespace. Same name in every env
-    # (rates-service is applied per namespace via rates-service/k8s-rates-service.yaml).
-    DOWNSTREAM_URL: "http://rates-service:9090"
+    # Downstream Payments Fraud Check service, reachable in-namespace. Same name in
+    # every env (fraud-check is applied per namespace via fraud-check-service/k8s-fraud-check.yaml).
+    DOWNSTREAM_URL: "http://fraud-check:9090"
   secrets: {}

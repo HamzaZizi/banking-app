@@ -19,8 +19,8 @@ cibanking:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
 
-# Downstream FX Rates service (the app's immediate integration). URL is set per
-# environment via the DOWNSTREAM_URL env var; falls back to localhost for dev.
+# Downstream Payments Fraud Check service (the app's immediate integration). URL
+# is set per environment via the DOWNSTREAM_URL env var; falls back to localhost.
 downstream:
-  rates:
+  fraudcheck:
     url: ${DOWNSTREAM_URL:http://localhost:9090}

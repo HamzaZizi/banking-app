@@ -7,34 +7,35 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Calls the downstream FX Rates service. This is the app's "immediate integration":
- * DEV integration tests assert that this cross-service call works after a patch.
+ * Calls the downstream Payments Fraud Check service. This is the app's
+ * "immediate integration": DEV integration tests assert that this cross-service
+ * call works after a patch.
  */
 @Service
-public class RatesService {
+public class FraudCheckService {
 
-    private final RestClient ratesRestClient;
+    private final RestClient fraudRestClient;
 
-    public RatesService(RestClient ratesRestClient) {
-        this.ratesRestClient = ratesRestClient;
+    public FraudCheckService(RestClient fraudRestClient) {
+        this.fraudRestClient = fraudRestClient;
     }
 
     /**
-     * Fetches FX rates from the downstream service and wraps them with the
+     * Calls the downstream fraud-check service and wraps the response with the
      * integration status, so callers can see whether the dependency is reachable.
      */
-    public Map<String, Object> getRates() {
+    public Map<String, Object> check() {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> downstream = ratesRestClient.get()
-                    .uri("/rates")
+            Map<String, Object> downstream = fraudRestClient.get()
+                    .uri("/fraud-check")
                     .retrieve()
                     .body(Map.class);
 
             result.put("source", "downstream");
             result.put("integration", "ok");
-            result.put("rates", downstream);
+            result.put("result", downstream);
         } catch (Exception e) {
             result.put("source", "downstream");
             result.put("integration", "unavailable");
