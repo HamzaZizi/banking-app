@@ -17,36 +17,69 @@
                 <button class="tab-btn active" data-tab="accounts">Accounts</button>
                 <button class="tab-btn" data-tab="mortgages">Mortgages</button>
             </nav>
-            <div class="user-chip">Hello, Alex Morgan</div>
+            <div class="user-area">
+                <span class="user-greeting">Alex Morgan</span>
+                <span class="user-avatar">AM</span>
+            </div>
         </div>
     </header>
 
     <main class="content">
+        <div class="page-head">
+            <h1 id="page-title">Your money</h1>
+            <p class="page-sub">Last logged in today at 09:14 &middot; All balances in GBP</p>
+        </div>
+
         <section class="summary-cards" id="summary-cards">
             <div class="card summary-card">
                 <div class="summary-label">Total balance</div>
                 <div class="summary-value" id="summary-total-balance">--</div>
+                <div class="summary-foot">across your accounts</div>
             </div>
             <div class="card summary-card">
                 <div class="summary-label">Accounts</div>
                 <div class="summary-value" id="summary-account-count">--</div>
+                <div class="summary-foot">current, savings &amp; business</div>
             </div>
             <div class="card summary-card">
                 <div class="summary-label">Mortgage balance</div>
                 <div class="summary-value" id="summary-mortgage-balance">--</div>
+                <div class="summary-foot">total outstanding</div>
             </div>
         </section>
 
         <section id="accounts-panel" class="panel active">
-            <h2>Your accounts</h2>
-            <div id="accounts-list" class="card-grid"></div>
+            <div class="panel-head">
+                <h2>Accounts</h2>
+                <span class="panel-hint">Select an account to view recent transactions</span>
+            </div>
+            <div id="accounts-list" class="account-list"></div>
         </section>
 
         <section id="mortgages-panel" class="panel">
-            <h2>Your mortgages</h2>
+            <div class="panel-head">
+                <h2>Mortgages</h2>
+            </div>
             <div id="mortgages-list" class="card-grid"></div>
         </section>
     </main>
+
+    <!-- Account detail / transactions drill-down -->
+    <div id="account-drawer" class="drawer" aria-hidden="true">
+        <div class="drawer-overlay" data-close-drawer></div>
+        <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+            <div class="drawer-header">
+                <button class="drawer-back" data-close-drawer aria-label="Close">&larr; Back</button>
+                <div class="drawer-title-wrap">
+                    <h2 id="drawer-title">Account</h2>
+                    <div class="drawer-sub" id="drawer-sub"></div>
+                </div>
+            </div>
+            <div class="drawer-balances" id="drawer-balances"></div>
+            <div class="drawer-section-title">Recent transactions</div>
+            <div class="txn-list" id="drawer-transactions"></div>
+        </aside>
+    </div>
 
     <footer class="footer">
         <p>C&amp;I Banking is a fictional demo application built for illustrative purposes only. No real account data.</p>

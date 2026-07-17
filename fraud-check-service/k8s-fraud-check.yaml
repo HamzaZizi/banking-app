@@ -1,0 +1,99 @@
+# Downstream "Payments Fraud Check" service - the backend's immediate external
+# dependency. Plain manifest applied directly to each env namespace (no image
+# build needed): stock nginx:alpine with the response JSON + server config
+# mounted from a ConfigMap.
+#
+# Apply into each namespace, e.g.:
+#   kubectl apply -n banking-app-dev     -f k8s-fraud-check.yaml
+#   kubectl apply -n banking-app-sit     -f k8s-fraud-check.yaml
+#   kubectl apply -n banking-app-staging -f k8s-fraud-check.yaml
+#   kubectl apply -n banking-app-prod    -f k8s-fraud-check.yaml
+#
+# The backend reaches it in-namespace at:  http://fraud-check:9090
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraud-check-content
+data:
+  fraud.json: |
+    {
+      "decision": "APPROVE",
+      "riskScore": 12,
+      "provider": "PaymentsFraudCheck",
+      "checkedAt": "2026-07-17T00:00:00Z"
+    }
+  default.conf: |
+    server {
+        listen 9090;
+        server_name _;
+        location = /fraud-check {
+            default_type application/json;
+            alias /usr/share/nginx/html/fraud.json;
+        }
+        location = /healthz {
+            return 200 'ok';
+            add_header Content-Type text/plain;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-check
+  labels:
+    app: fraud-check
+    component: downstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fraud-check
+  template:
+    metadata:
+      labels:
+        app: fraud-check
+        component: downstream
+    spec:
+      containers:
+        - name: fraud-check
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: content
+              mountPath: /usr/share/nginx/html/fraud.json
+              subPath: fraud.json
+            - name: content
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: content
+          configMap:
+            name: fraud-check-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-check
+  labels:
+    app: fraud-check
+spec:
+  type: ClusterIP
+  selector:
+    app: fraud-check
+  ports:
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP

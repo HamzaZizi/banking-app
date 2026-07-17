@@ -61,6 +61,32 @@ class BankingServiceTest {
     }
 
     @Test
+    void getTransactions_returnsTransactionsForKnownAccount() {
+        var txns = service.getTransactions("acc-001");
+        assertThat(txns).isNotNull();
+        assertThat(txns).isNotEmpty();
+        assertThat(txns).allSatisfy(t -> assertThat(t.getAccountId()).isEqualTo("acc-001"));
+    }
+
+    @Test
+    void getTransactions_returnsNullForUnknownAccount() {
+        assertThat(service.getTransactions("does-not-exist")).isNull();
+    }
+
+    @Test
+    void getTransactions_creditsArePositiveAndDebitsAreNegative() {
+        var txns = service.getTransactions("acc-001");
+        assertThat(txns).isNotNull();
+        assertThat(txns).allSatisfy(t -> {
+            if ("CREDIT".equals(t.getType())) {
+                assertThat(t.getAmount()).isPositive();
+            } else if ("DEBIT".equals(t.getType())) {
+                assertThat(t.getAmount()).isNegative();
+            }
+        });
+    }
+
+    @Test
     void getMortgages_returnsAllSeededMortgages() {
         List<Mortgage> mortgages = service.getMortgages();
         assertThat(mortgages).hasSize(2);

@@ -10,12 +10,13 @@ set -euo pipefail
 
 BACKEND_NAME="ci-backend"
 FRONTEND_NAME="ci-frontend"
+FRAUD_NAME="ci-fraud-check"
 
 log() { printf '\033[0;35m==>\033[0m %s\n' "$*"; }
 
 if docker info >/dev/null 2>&1; then
   log "Stopping and removing demo containers..."
-  docker rm -f "$BACKEND_NAME" "$FRONTEND_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$BACKEND_NAME" "$FRONTEND_NAME" "$FRAUD_NAME" >/dev/null 2>&1 || true
   log "Containers removed."
 else
   log "Docker daemon not running, nothing to remove."
