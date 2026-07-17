@@ -1,7 +1,7 @@
-# Resource name = the Harness Service name (e.g. ci-banking-backend), so K8s
-# names are stable and predictable across environments. The frontend Ingress
-# routes /api to a Service called ci-banking-backend, so this must resolve to that.
-name: <+service.name>
+# Resource name is prefixed with the environment (dev/sit/staging/prod) so names
+# are self-describing across namespaces, e.g. dev-banking-app-backend. The frontend
+# Ingress routes /api to this exact name (also prefixed with <+env.name>).
+name: <+env.name>-<+service.name>
 replicas: 2
 
 image: <+artifact.image>
