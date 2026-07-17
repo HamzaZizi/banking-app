@@ -285,6 +285,37 @@ Stages:
 5. **Deploy to Staging** — canary. *(STAGING = end-to-end.)*
 6. **Deploy to Prod** — canary + progressive rollout with verification and auto-rollback.
 
+## DEV gate — integration tests
+
+The DEV stage's job (per the operating model) is to *deploy the patch and confirm the
+updated dependency works correctly with the application and its immediate integrations*.
+So after the Helm deploy, a **DEV Integration Tests** step group runs a series of distinct
+checks against the **deployed** app (in-cluster, `http://dev-banking-app-backend:8080`).
+Each check is its own step so it shows up individually in the pipeline graph, and any
+failure fails the stage and triggers rollback (`StageRollback` / `HelmRollback`).
+
+These are **integration/smoke tests against the running deployment** — distinct from the
+unit tests, which run earlier in CI against the source before the image is even built.
+
+| Step | Checks | What it proves | On fail |
+| ---- | ------ | -------------- | ------- |
+| **Health Check** | `GET /actuator/health` returns `status: UP` | the patched image boots and serves | rollback |
+| **Summary Contract** | `GET /api/summary` returns `accountCount` | the app's own core contract survived the change | rollback |
+| **Accounts List** | `GET /api/accounts` returns the seeded accounts | the primary data endpoint works | rollback |
+| **Transactions Drilldown** | `GET /api/accounts/{id}/transactions` returns transactions | the drill-down endpoint works | rollback |
+| **Downstream Fraud Integration** ⭐ | `GET /api/fraud-check` returns `200` + `integration: ok` | the backend can still reach and call the downstream Payments Fraud Check service after the patch — the core integration gate | rollback |
+| **Negative Path 404** | `GET /api/accounts/<unknown>` returns `404` | error paths still behave correctly, not just the happy path | rollback |
+
+The starred **Downstream Fraud Integration** check is the heart of the DEV gate: if a
+dependency bump broke the HTTP client, serialization, or connectivity to the fraud
+service, this is where it surfaces — before the artifact is ever promoted to SIT.
+
+Each environment integrates with **its own** fraud-check instance (dev tests the dev
+instance, never production). In a real system dev/SIT would target the vendor's sandbox
+and only prod would hit the live fraud engine; here each namespace runs its own stub —
+which is exactly what lets prod's instance be failed deliberately later to demonstrate
+canary rollback.
+
 ## Immutable, promotable artifacts
 
 Images are tagged **`1.0.<+pipeline.sequenceId>`** (e.g. `banking-app-backend:1.0.41`),
