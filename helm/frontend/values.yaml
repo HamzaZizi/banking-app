@@ -1,6 +1,6 @@
 # Resource name is prefixed with the environment (dev/sit/staging/prod) so names
 # are self-describing across namespaces, e.g. dev-banking-app-frontend.
-name: <+env.name>-<+service.name>
+name: <+env.name.toLowerCase()>-<+service.name>
 replicas: 2
 
 image: <+artifact.image>
@@ -33,7 +33,7 @@ ingress:
   # Name + port of the backend Service the /api route points at. Must match the
   # backend's prefixed resource name (<+env.name>-<+service.name>), e.g.
   # dev-banking-app-backend. Same env, so <+env.name> resolves identically here.
-  backendServiceName: <+env.name>-banking-app-backend
+  backendServiceName: <+env.name.toLowerCase()>-banking-app-backend
   backendServicePort: 8080
 
 livenessPath: /healthz
