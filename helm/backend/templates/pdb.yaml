@@ -1,0 +1,16 @@
+# Keep at least 1 replica serving during voluntary disruptions (node drains,
+# cluster upgrades, chaos node/pod-kill experiments). Without this, a drain can
+# evict both replicas at once and blackhole the Service.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+    component: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
