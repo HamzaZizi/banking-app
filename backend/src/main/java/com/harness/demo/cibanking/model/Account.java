@@ -12,12 +12,21 @@ public class Account {
     private BigDecimal balance;
     private BigDecimal availableBalance;
     private String currency;
+    private BigDecimal overdraftLimit;
+    private String product;
 
     public Account() {
     }
 
     public Account(String id, String nickname, String type, String sortCode, String accountNumberMasked,
                    BigDecimal balance, BigDecimal availableBalance, String currency) {
+        this(id, nickname, type, sortCode, accountNumberMasked, balance, availableBalance, currency,
+                BigDecimal.ZERO, null);
+    }
+
+    public Account(String id, String nickname, String type, String sortCode, String accountNumberMasked,
+                   BigDecimal balance, BigDecimal availableBalance, String currency,
+                   BigDecimal overdraftLimit, String product) {
         this.id = id;
         this.nickname = nickname;
         this.type = type;
@@ -26,6 +35,8 @@ public class Account {
         this.balance = balance;
         this.availableBalance = availableBalance;
         this.currency = currency;
+        this.overdraftLimit = overdraftLimit;
+        this.product = product;
     }
 
     public String getId() {
@@ -90,5 +101,21 @@ public class Account {
 
     public void setCurrency(String currency) {
         this.currency = currency;
+    }
+
+    public BigDecimal getOverdraftLimit() {
+        return overdraftLimit;
+    }
+
+    public void setOverdraftLimit(BigDecimal overdraftLimit) {
+        this.overdraftLimit = overdraftLimit;
+    }
+
+    public String getProduct() {
+        return product;
+    }
+
+    public void setProduct(String product) {
+        this.product = product;
     }
 }

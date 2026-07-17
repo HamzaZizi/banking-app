@@ -1,6 +1,7 @@
 package com.harness.demo.cibanking.controller;
 
 import com.harness.demo.cibanking.model.Account;
+import com.harness.demo.cibanking.model.Transaction;
 import com.harness.demo.cibanking.service.BankingService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,5 +40,14 @@ public class AccountController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(balance);
+    }
+
+    @GetMapping("/{id}/transactions")
+    public ResponseEntity<List<Transaction>> getTransactions(@PathVariable String id) {
+        List<Transaction> transactions = bankingService.getTransactions(id);
+        if (transactions == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(transactions);
     }
 }

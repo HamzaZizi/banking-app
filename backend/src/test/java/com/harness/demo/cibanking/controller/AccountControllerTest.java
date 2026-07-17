@@ -59,4 +59,20 @@ class AccountControllerTest {
         mockMvc.perform(get("/api/accounts/unknown/balance"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void getTransactions_returnsTransactionsForKnownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/acc-001/transactions"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$[0].accountId").value("acc-001"))
+                .andExpect(jsonPath("$[0].type").exists())
+                .andExpect(jsonPath("$[0].amount").exists());
+    }
+
+    @Test
+    void getTransactions_returns404ForUnknownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/unknown/transactions"))
+                .andExpect(status().isNotFound());
+    }
 }
