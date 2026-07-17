@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: {{ .Values.name }}
   namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+    component: backend
   annotations:
     # When this Service is used as an ALB Ingress backend, the ALB health-checks
     # its target group on this path. The backend serves /actuator/health/*, NOT /,
@@ -15,6 +18,7 @@ spec:
   selector:
     app: {{ .Values.name }}
   ports:
-    - port: {{ .Values.servicePort }}
+    - name: http
+      port: {{ .Values.servicePort }}
       targetPort: {{ .Values.serviceTargetPort }}
       protocol: TCP
