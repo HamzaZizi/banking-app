@@ -20,13 +20,16 @@ serviceTargetPort: 8080
 livenessPath: /actuator/health/liveness
 readinessPath: /actuator/health/readiness
 
+# Requests are what the scheduler reserves — set them realistically so replicas
+# get their own node headroom instead of contending. Limits give burst room; the
+# JVM-backed backend gets more memory than the static-nginx frontend.
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
+    cpu: 250m
     memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
 
 # Config goes into a ConfigMap, secrets into a Secret. Both are mounted into
 # the container via envFrom, so changing these doesn't require a new image

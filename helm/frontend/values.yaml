@@ -39,13 +39,17 @@ ingress:
 livenessPath: /healthz
 readinessPath: /healthz
 
+# Requests are what the scheduler actually reserves — set them realistically so
+# replicas get their own headroom instead of fighting for the same cores (the
+# staging incident: 50m requests let two pods pile onto one saturated node and
+# their /healthz probes timed out). Limits give burst room on top.
 resources:
   requests:
-    cpu: 50m
-    memory: 64Mi
-  limits:
-    cpu: 200m
+    cpu: 100m
     memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
 
 # API_BASE_URL gets baked into config.js at container start (see docker-entrypoint.sh).
 # Empty string = same origin: the browser calls /api/... on the same ALB host that

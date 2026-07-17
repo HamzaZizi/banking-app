@@ -8,6 +8,14 @@ metadata:
     component: backend
 spec:
   replicas: {{ .Values.replicas }}
+  # Surge a new pod up BEFORE tearing an old one down: zero-downtime rollout and
+  # no "waiting on the last replica" stall. maxUnavailable:0 keeps full capacity
+  # during the roll; maxSurge:1 caps the extra load to one pod at a time.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: {{ .Values.name }}
@@ -17,6 +25,16 @@ spec:
         app: {{ .Values.name }}
         component: backend
     spec:
+      # Spread replicas across nodes so one hot node can't starve every replica,
+      # and a single node loss / chaos node-kill can't take the whole Service down.
+      # ScheduleAnyway = never block a deploy if the cluster is temporarily lopsided.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Values.name }}
       containers:
         - name: backend
           image: {{ .Values.image }}
@@ -32,12 +50,16 @@ spec:
               path: {{ .Values.livenessPath }}
               port: {{ .Values.serviceTargetPort }}
             initialDelaySeconds: 20
-            periodSeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: {{ .Values.readinessPath }}
               port: {{ .Values.serviceTargetPort }}
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
