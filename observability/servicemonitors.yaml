@@ -1,0 +1,62 @@
+# ServiceMonitors so kube-prometheus-stack scrapes each backend's /actuator/prometheus.
+# One per environment (SIT, staging, prod - dev is intentionally not scraped).
+#
+# Requirements:
+#   - label `release: kps` so the kube-prometheus-stack Prometheus auto-discovers it
+#   - the backend Service must expose a named port `http` (added in helm/backend Service)
+#   - the metrics-enabled backend image must be deployed (exposes /actuator/prometheus)
+#
+# Apply:  kubectl apply -f observability/servicemonitors.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: banking-app-backend
+  namespace: banking-app-sit
+  labels:
+    release: kps
+spec:
+  namespaceSelector:
+    matchNames: [banking-app-sit]
+  selector:
+    matchLabels:
+      component: backend
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: banking-app-backend
+  namespace: banking-app-staging
+  labels:
+    release: kps
+spec:
+  namespaceSelector:
+    matchNames: [banking-app-staging]
+  selector:
+    matchLabels:
+      component: backend
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: banking-app-backend
+  namespace: banking-app-prod
+  labels:
+    release: kps
+spec:
+  namespaceSelector:
+    matchNames: [banking-app-prod]
+  selector:
+    matchLabels:
+      component: backend
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
