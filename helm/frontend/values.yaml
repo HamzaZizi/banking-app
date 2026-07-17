@@ -26,9 +26,9 @@ ingress:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-  # Name + port of the backend Service the /api route points at. Defaults to the
-  # backend Harness Service name; override per-env if the backend stage differs.
-  backendServiceName: ci-banking-backend
+  # Name + port of the backend Service the /api route points at. Must match the
+  # backend's Harness Service name (name: <+service.name>), i.e. banking-app-backend.
+  backendServiceName: banking-app-backend
   backendServicePort: 8080
 
 livenessPath: /healthz
