@@ -1,4 +1,11 @@
-const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.apiBaseUrl) || "http://localhost:8080";
+// If APP_CONFIG.apiBaseUrl is a string (including ""), use it verbatim.
+// "" = same origin: the browser calls /api/... on whatever host served this
+// page (the shared ALB), so there's no cross-origin request and no CORS.
+// Only when there's no config.js at all (pure local static serving) do we
+// fall back to the local backend on :8080.
+const API_BASE = (window.APP_CONFIG && typeof window.APP_CONFIG.apiBaseUrl === "string")
+    ? window.APP_CONFIG.apiBaseUrl
+    : "http://localhost:8080";
 
 const gbp = (value) =>
     new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(value);
@@ -88,3 +95,9 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+// Export for unit tests when running under Node/Jest. No effect in the browser
+// (there is no `module` global there), so runtime behaviour is unchanged.
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = { gbp, fetchJson, renderSummary, renderAccounts, renderMortgages };
+}
