@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ci-banking-backend
+description: C&I Banking demo backend (Spring Boot) - one Harness Service, one chart
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
