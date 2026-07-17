@@ -1,0 +1,32 @@
+name: <+stage.name>
+replicas: 2
+
+image: <+artifact.image>
+# dockercfg: <+artifact.imagePullSecret>
+
+createNamespace: true
+namespace: <+infra.namespace>
+
+# LoadBalancer here because this is the service users/demo attendees actually hit.
+serviceType: LoadBalancer
+servicePort: 80
+serviceTargetPort: 8081
+
+livenessPath: /healthz
+readinessPath: /healthz
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# API_BASE_URL gets baked into config.js at container start (see docker-entrypoint.sh).
+# This is the one value that MUST change per environment: point it at wherever
+# the backend Service actually resolves in that environment/cluster.
+env:
+  config:
+    API_BASE_URL: http://ci-banking-backend:8080
+  secrets: {}
