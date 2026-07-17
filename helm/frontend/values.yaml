@@ -7,10 +7,27 @@ image: <+artifact.image>
 createNamespace: true
 namespace: <+infra.namespace>
 
-# LoadBalancer here because this is the service users/demo attendees actually hit.
-serviceType: LoadBalancer
+# ClusterIP: the shared ALB (via Ingress) is the only public entry point now,
+# so the frontend Service just needs to be reachable in-cluster by the ALB.
+serviceType: ClusterIP
 servicePort: 80
 serviceTargetPort: 8081
+
+# Ingress -> EKS Auto Mode provisions a single ALB from this. Path-based routing:
+#   /api  -> backend Service    (so the browser hits the backend on the same host)
+#   /     -> this frontend Service
+# Both apps share one hostname => same origin => no CORS.
+ingress:
+  enabled: true
+  className: eks-alb
+  # internet-facing ALB with IP target type (required for EKS Auto Mode / Bottlerocket).
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+  # Name + port of the backend Service the /api route points at. Defaults to the
+  # backend Harness Service name; override per-env if the backend stage differs.
+  backendServiceName: ci-banking-backend
+  backendServicePort: 8080
 
 livenessPath: /healthz
 readinessPath: /healthz
@@ -24,9 +41,10 @@ resources:
     memory: 128Mi
 
 # API_BASE_URL gets baked into config.js at container start (see docker-entrypoint.sh).
-# This is the one value that MUST change per environment: point it at wherever
-# the backend Service actually resolves in that environment/cluster.
+# Empty string = same origin: the browser calls /api/... on the same ALB host that
+# served the page, so the backend is reached via the Ingress /api route with no CORS
+# and no need for a browser-resolvable backend hostname.
 env:
   config:
-    API_BASE_URL: http://ci-banking-backend:8080
+    API_BASE_URL: ""
   secrets: {}

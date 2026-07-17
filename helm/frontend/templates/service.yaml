@@ -3,6 +3,12 @@ kind: Service
 metadata:
   name: {{ .Values.name }}
   namespace: {{ .Values.namespace }}
+  annotations:
+    # ALB health-checks this Service's target group on this path. nginx serves
+    # /healthz (see nginx.conf); default "/" also works but /healthz is explicit.
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.readinessPath | quote }}
+    alb.ingress.kubernetes.io/healthcheck-port: "traffic-port"
+    alb.ingress.kubernetes.io/success-codes: "200"
 spec:
   type: {{ .Values.serviceType }}
   selector:

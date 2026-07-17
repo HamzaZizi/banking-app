@@ -3,6 +3,13 @@ kind: Service
 metadata:
   name: {{ .Values.name }}
   namespace: {{ .Values.namespace }}
+  annotations:
+    # When this Service is used as an ALB Ingress backend, the ALB health-checks
+    # its target group on this path. The backend serves /actuator/health/*, NOT /,
+    # so without this the ALB would probe / , get 404s, and mark targets unhealthy.
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.readinessPath | quote }}
+    alb.ingress.kubernetes.io/healthcheck-port: "traffic-port"
+    alb.ingress.kubernetes.io/success-codes: "200"
 spec:
   type: {{ .Values.serviceType }}
   selector:
