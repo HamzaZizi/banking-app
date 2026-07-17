@@ -23,9 +23,13 @@ ingress:
   enabled: true
   className: eks-alb
   # internet-facing ALB with IP target type (required for EKS Auto Mode / Bottlerocket).
+  # Subnets are pinned explicitly because this VPC is shared with another cluster:
+  # auto-discovery finds subnets tagged for the other cluster and refuses them, so we
+  # name the public subnets (MapPublicIpOnLaunch=true) directly instead.
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/subnets: subnet-1e0cf064,subnet-5fa7a512,subnet-dfbb05b6
   # Name + port of the backend Service the /api route points at. Must match the
   # backend's Harness Service name (name: <+service.name>), i.e. banking-app-backend.
   backendServiceName: banking-app-backend
