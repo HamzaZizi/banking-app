@@ -349,8 +349,11 @@ K6 script** — the script lives in the repo at [`loadtest/sit-load.js`](loadtes
 so the gate is version-controlled alongside the app (it flows through the same Renovate/
 GitOps story as everything else). Host URL is passed to the script as `__ENV.HOST_URL`.
 
-The load test is invoked from the pipeline via a **Chaos step** pointing at the saved
-load test — the same step type that will later run the chaos experiments in Staging.
+The load test is invoked from the pipeline via a **`LoadTest` step** (`spec.loadTestRef:
+sitbankingappload`) inside the SIT stage, right after the Helm deploy. Because SIT is a
+multi-service stage, the whole step block loops once per service (frontend, then backend);
+the LoadTest step is gated with `when: <+service.identifier> == "bankingappbackend"` so it
+runs **once**, on the backend iteration, after both services are deployed.
 
 ### What the k6 script tests
 
@@ -365,26 +368,59 @@ flat ping, so the load looks like production traffic:
 Every request runs k6 **checks** (`status is 200`, non-empty body) and is **tagged by
 endpoint** so the results table breaks latency down per route. Custom **Trend** metrics
 (`journey_browse_duration`, `journey_fraud_duration`) measure each journey end-to-end, and
-a custom **Rate** (`functional_errors`) tracks non-200/empty responses separately from
-transport failures. Requests use the **real** SIT seed IDs (`acc-001/002/003`,
-`mtg-001/002`) so `/{id}` routes return 200 rather than false-404ing the gate.
+a custom **Rate** (`functional_errors`) tracks non-200/empty responses. Requests use the
+**real** SIT seed IDs (`acc-001/002/003`, `mtg-001/002`) so `/{id}` routes return 200
+rather than false-404ing the gate. **Note:** the tags and custom metrics feed the
+*results display* (the Endpoint Statistics breakdown) — they are **not** what gates the
+build (see the threshold note below).
 
 ### The gate itself (thresholds)
 
 Per Harness's results model, **a high error rate alone does not fail a run — only a
 breached k6 `threshold` marks it Failed.** So the script's `thresholds` block *is* the
-gate. It's layered, so a regression trips at the tightest relevant level:
+gate:
 
-- **Global SLOs:** `http_req_duration p95<800ms` & `p99<1500ms`; `http_req_failed rate<1%`;
-  `checks rate>99%`.
-- **Per-journey SLOs:** browse `p95<600ms`; fraud path `p95<1000ms` (looser — it crosses a
-  service boundary).
-- **Per-endpoint SLOs:** e.g. `{name:summary} p95<500ms`, `{name:fraud_check} p95<1000ms`
-  — these pinpoint *which* route regressed instead of just "something got slow".
+```js
+thresholds: {
+  http_req_duration: ['p(95)<50', 'p(99)<1000'],                        // latency SLO
+  http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: true, delayAbortEval: '30s' }],
+  checks:          [{ threshold: 'rate>0.99', abortOnFail: true, delayAbortEval: '30s' }],
+}
+```
 
-> The threshold numbers are a sensible starting point. The **first run is a baseline** —
-> read the actual percentiles from the results and tighten/loosen so the gate is
-> meaningful rather than decorative, then it stays fixed as the regression line.
+Two hard-won lessons are baked into that block:
+
+**1. Gate only on STANDARD k6 metrics.** Harness's k6 gate evaluates only k6's built-in
+metrics. **Custom metrics** (`Trend`/`Rate`) and **tag-scoped sub-metric thresholds** like
+`http_req_duration{name:summary}` are *not* collected — they show **`N/E` (Not Evaluated)**
+and silently never gate. An earlier layered version had 10 thresholds; a run showed **4
+passed, 6 N/E** — a perfect split: the 4 standard metrics ran, every custom/tagged one was
+dead. `N/E` is *not* passing, it's *not running* — so the gate now uses only
+`http_req_duration`, `http_req_failed`, and `checks`, and every threshold genuinely runs.
+The per-journey / per-endpoint numbers still appear in the results view for diagnosis, they
+just don't gate.
+
+**2. Tuned to the real baseline + `abortOnFail`.** The numbers are tuned to the observed
+in-cluster baseline (p95 ~3ms, p99 ~597ms, 0% errors) — p95 sits ~15× above baseline: tight
+enough to catch a real regression, loose enough to absorb jitter; p99 is generous so the
+cold-start tail can't flake a healthy deploy. The **error** thresholds carry
+`abortOnFail: true` (with `delayAbortEval: '30s'` to skip ramp-up): if a build is throwing
+errors or failing checks, k6 **kills the run in seconds** rather than loading a known-broken
+deploy for the full duration. The **latency** threshold deliberately does *not* abort —
+percentiles need enough samples to be a trustworthy verdict.
+
+> **Validated (run #3):** 3m26s, **PASS 4/4 (zero N/E)**, p95 3ms / p99 222ms, 0.00% errors,
+> 100% checks (41,684/41,684) — *"All pass criteria met. Build can proceed."* Both scenarios
+> `finished`. The Endpoint Statistics breakdown renders per route for diagnosis.
+
+> **Gotcha — the UI "Load Profile Overrides" fields.** `Users` and `Duration` are marked
+> optional but must be **> 0** — clearing them sends `0`, and k6 rejects `duration=0`
+> (`E3002: duration should be more than 0`). Set `Duration` ≥ the script's total run length
+> (e.g. 200s) as the overall run window, and any `Users > 0`. Also, the `Host URL` field
+> rejects a port, so it passes the **origin only** — the script appends `:8080` when
+> `HOST_URL` has no explicit port. With scenarios declared in the script, the UI Users value
+> still injects a small background scenario, but the script's ramps drive the meaningful
+> load and the gate is evaluated globally.
 
 ### Why do this with Harness rather than raw k6
 
@@ -404,6 +440,9 @@ it. Doing it *through Harness Resilience Testing* adds:
 - **One tool, two jobs.** The *same* load test object is reused in Staging **in parallel
   with a chaos experiment** (fault injected *while* under load) to become a resilience
   gate. Raw k6 has no concept of coordinated fault injection; Harness does.
+- **Fail fast on a bad build.** `abortOnFail` on the error thresholds means a build that's
+  throwing errors is killed in *seconds*, not after a full load run — the stage fails and
+  rolls back immediately, so a known-broken deploy never wastes the pipeline's time.
 - **Governable (see below).** Because the gate is a pipeline object, policy-as-code can
   *require* it to exist — you can't quietly delete the performance gate and still ship.
 
