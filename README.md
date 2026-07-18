@@ -281,7 +281,8 @@ Stages:
    risks, build/test evidence, recommendation).
 3. **Deploy to Dev** — artifact verification, then Helm deploy. *(DEV = integration
    validation against the downstream fraud-check.)*
-4. **Deploy to SIT** — promotes the same artifact. *(SIT = performance / regression.)*
+4. **Deploy to SIT** — promotes the same artifact, then runs a k6 load test as a
+   performance gate. *(SIT = performance / regression — see "SIT gate" below.)*
 5. **Deploy to Staging** — canary. *(STAGING = end-to-end.)*
 6. **Deploy to Prod** — canary + progressive rollout with verification and auto-rollback.
 
@@ -315,6 +316,168 @@ instance, never production). In a real system dev/SIT would target the vendor's 
 and only prod would hit the live fraud engine; here each namespace runs its own stub —
 which is exactly what lets prod's instance be failed deliberately later to demonstrate
 canary rollback.
+
+## SIT gate — performance / load testing (k6 via Harness Resilience Testing)
+
+Where DEV proves the patch *works* (integration/smoke), **SIT proves it still performs**.
+The operating-model line for SIT is *"regression, compatibility, and performance checks"* —
+this section covers the **performance** half: a k6 load test that runs against the freshly
+deployed SIT app and gates promotion on latency/error SLOs.
+
+### Where it runs in the stage
+
+The load test runs **after** the Helm deploy, against the **deployed** SIT service
+(exactly like the DEV integration checks run after the DEV deploy):
+
+```
+SIT stage
+ ├─ 1. Helm deploy   → same immutable artifact promoted into banking-app-sit
+ ├─ 2. pods ready    → readiness probes pass
+ └─ 3. Load test     → k6 drives traffic at http://sit-banking-app-backend.banking-app-sit.svc.cluster.local:8080
+        └─ any k6 threshold breached → step Failed → stage Failed → StageRollback
+```
+
+There must be a running deployment to load, so the test is ordered after deploy; it
+targets the in-cluster Service DNS because the load runner executes inside the cluster.
+
+### How the load test is set up
+
+It's built in **Resilience Testing › Load Testing** (not a hand-rolled Run step), using
+**Load Test Type = K6**, **Target Type = Kubernetes**, on the project's Kubernetes chaos
+infrastructure (the same in-cluster infra used for chaos experiments). Mode is **Upload
+K6 script** — the script lives in the repo at [`loadtest/sit-load.js`](loadtest/sit-load.js)
+so the gate is version-controlled alongside the app (it flows through the same Renovate/
+GitOps story as everything else). Host URL is passed to the script as `__ENV.HOST_URL`.
+
+The load test is invoked from the pipeline via a **Chaos step** pointing at the saved
+load test — the same step type that will later run the chaos experiments in Staging.
+
+### What the k6 script tests
+
+The script models **two real user journeys running in parallel** (k6 *scenarios*), not a
+flat ping, so the load looks like production traffic:
+
+| Scenario | Executor | Load | What it represents |
+| -------- | -------- | ---- | ------------------ |
+| `customer_browse` | `ramping-vus` | ramp to 15 VUs, hold 2m | A customer opening the app: summary → accounts list → drill into one account's detail / balance / transactions → mortgages. |
+| `fraud_check_pressure` | `ramping-vus` | ramp to 25 VUs, hold 90s, overlapping browse | The cross-service `/api/fraud-check` path hammered independently — the boundary most likely to degrade after a bad dependency bump. |
+
+Every request runs k6 **checks** (`status is 200`, non-empty body) and is **tagged by
+endpoint** so the results table breaks latency down per route. Custom **Trend** metrics
+(`journey_browse_duration`, `journey_fraud_duration`) measure each journey end-to-end, and
+a custom **Rate** (`functional_errors`) tracks non-200/empty responses separately from
+transport failures. Requests use the **real** SIT seed IDs (`acc-001/002/003`,
+`mtg-001/002`) so `/{id}` routes return 200 rather than false-404ing the gate.
+
+### The gate itself (thresholds)
+
+Per Harness's results model, **a high error rate alone does not fail a run — only a
+breached k6 `threshold` marks it Failed.** So the script's `thresholds` block *is* the
+gate. It's layered, so a regression trips at the tightest relevant level:
+
+- **Global SLOs:** `http_req_duration p95<800ms` & `p99<1500ms`; `http_req_failed rate<1%`;
+  `checks rate>99%`.
+- **Per-journey SLOs:** browse `p95<600ms`; fraud path `p95<1000ms` (looser — it crosses a
+  service boundary).
+- **Per-endpoint SLOs:** e.g. `{name:summary} p95<500ms`, `{name:fraud_check} p95<1000ms`
+  — these pinpoint *which* route regressed instead of just "something got slow".
+
+> The threshold numbers are a sensible starting point. The **first run is a baseline** —
+> read the actual percentiles from the results and tighten/loosen so the gate is
+> meaningful rather than decorative, then it stays fixed as the regression line.
+
+### Why do this with Harness rather than raw k6
+
+Raw `k6 run` gives you the load engine and the pass/fail exit code — but nothing around
+it. Doing it *through Harness Resilience Testing* adds:
+
+- **It's a native pipeline gate.** The load test is a first-class object invoked by a step;
+  a Failed run fails the stage and triggers the **same StageRollback/HelmRollback** the
+  rest of the pipeline uses. No glue scripts, no parsing k6 JSON, no bespoke CI wiring.
+- **In-cluster runner, managed for you.** k6 runs as pods on the existing chaos
+  infrastructure inside the EKS cluster, so it reaches ClusterIP Services directly — no
+  public exposure, no ingress hop, no runner to maintain. Distributed execution (splitting
+  load across replica pods) is a config toggle, not a Kubernetes job you write.
+- **Results are stored, visual, and comparable.** p95/p99, RPS, error rate, a response-time
+  histogram, the checks table, and the pass/fail threshold table are rendered per run and
+  kept for run-over-run comparison — versus raw k6's console output that scrolls away.
+- **One tool, two jobs.** The *same* load test object is reused in Staging **in parallel
+  with a chaos experiment** (fault injected *while* under load) to become a resilience
+  gate. Raw k6 has no concept of coordinated fault injection; Harness does.
+- **Governable (see below).** Because the gate is a pipeline object, policy-as-code can
+  *require* it to exist — you can't quietly delete the performance gate and still ship.
+
+### Logic vs. verdict vs. proof — where the script ends and Harness begins
+
+A fair question: *if the thresholds are in the script, what is Harness actually adding?*
+Three different things, and only the first lives in the script:
+
+1. **The gate LOGIC — "what counts as passing?"** This is the `thresholds` block. Raw k6
+   has it too. Nothing special yet.
+2. **The VERDICT — "did it pass?"** Raw k6 emits a **process exit code** (0 = pass,
+   non-zero = a threshold was breached) and prints to the console. That exit code lives
+   for a few seconds in a terminal and is then gone. To *use* it you'd hand-build the glue:
+   capture the code, decide what to do, wire a rollback, stash the output somewhere.
+3. **The PROOF — "prove it passed, tied to this exact artifact, months later."** Raw k6
+   has nothing here. Harness records the verdict as a stored step result — timestamped,
+   bound to the specific image (`banking-app-backend:1.0.<seq>`), with the exact thresholds
+   evaluated and the measured p95/p99/RPS/error-rate/histogram kept for audit and
+   run-over-run comparison. The artifact reached Staging *because* this step passed, so the
+   promotion itself is the evidence.
+
+The one-liner: **k6 decides pass/fail in the moment; Harness makes that verdict durable,
+enforced, and auditable.** For a bank, the proof is the product — an auditor or change
+board wants evidence that *this version* met its performance SLO before it went near prod,
+not a console log that scrolled away.
+
+### Why the verdict can't be faked (anti-bypass)
+
+The sharpest version of the question: *what stops someone forcing a green gate — either
+deleting the whole step, or short-circuiting the script to `exit 0` so a slow build
+"passes"?* This is exactly why the gate is a **platform object, not a shell script**:
+
+- **You don't own the exit code.** With a hand-rolled `k6 run` in a Run step, the verdict
+  is whatever the shell returns — so `k6 run … || true`, a trailing `exit 0`, or a script
+  edited to skip the assertions all *simulate success*, and nothing notices. In Harness the
+  load test is a **first-class step whose pass/fail is computed by the platform from the
+  threshold results**, not from a shell exit code you can override. There is no `|| true`
+  to add — you're not the one deciding the return value.
+- **Deleting/disabling the step is itself blocked.** Because the pipeline is versioned YAML
+  governed by **OPA policy-as-code**, a Rego rule inspects the pipeline on every run and
+  *denies execution* if the SIT load-test step is missing, disabled, or its
+  `continueOnFailure`/failure-strategy has been loosened to ignore a breach. So "just remove
+  the gate" fails the pipeline before it starts. (See the OPA section below.)
+- **Tampering is on the record.** The pipeline YAML lives in Git and every execution is
+  audit-logged — *who* changed the gate, *when*, and *which run* skipped it are all visible.
+  Faking a pass isn't a silent edit; it's a tracked, attributable, policy-violating change.
+- **The proof is bound to the artifact, not re-assertable after the fact.** You can't
+  retroactively stamp "passed" onto an image. The only way `1.0.41` shows a passing SIT
+  gate is if *that run* actually evaluated the thresholds and they held.
+
+Net: to bypass the gate you'd have to defeat *three independent layers* — the
+platform-computed verdict, an OPA policy that requires the gate to exist and stay
+fail-closed, and a Git/audit trail that records the attempt. A raw-k6-in-CI setup has none
+of these; a single `|| true` defeats it silently.
+
+### Optional: enforcing the gate with OPA (policy-as-code / governance)
+
+The k6 threshold answers *"did the app stay fast?"*. **OPA answers a different question:
+*"was the process followed?"*** — and that's where it belongs, not as the latency check
+itself (the threshold already does that far more directly).
+
+Concretely, a Harness **Governance / OPA policy** (Rego) evaluated on the pipeline can
+enforce guardrails such as:
+
+- **The SIT performance gate must exist and must run before Prod.** A Rego rule that
+  inspects the pipeline YAML and *denies* execution if the SIT load-test step has been
+  removed or disabled — so nobody can ship to Prod having skipped the gate.
+- **No promotion without the required approvals / signed image / etc.** (governance rules
+  that have nothing to do with latency but everything to do with a trustworthy pipeline).
+
+So the mental model for SIT is two complementary layers: **k6 thresholds = the performance
+gate** (fail-closed on latency/errors), and **OPA = the governance gate that guarantees the
+performance gate is present and enforced.** For the demo, get the k6 gate green first; the
+OPA policy is a strong second beat that shows the gate can't be bypassed.
 
 ## Immutable, promotable artifacts
 
