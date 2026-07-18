@@ -2,7 +2,11 @@
 # are self-describing across namespaces, e.g. dev-banking-app-backend. The frontend
 # Ingress routes /api to this exact name (also prefixed with <+env.name>).
 name: <+env.name.toLowerCase()>-<+service.name>
-replicas: 2
+# Replica count is a service variable (base default "2") so a Harness environment
+# service override can raise it per-env WITHOUT editing this file again — Prod
+# overrides it to "5" for the canary/CV stage. Harness resolves this expression
+# in the values file at deploy time, before Helm templating.
+replicas: <+serviceVariables.replicas>
 
 image: <+artifact.image>
 # dockercfg: <+artifact.imagePullSecret>
