@@ -518,6 +518,73 @@ gate** (fail-closed on latency/errors), and **OPA = the governance gate that gua
 performance gate is present and enforced.** For the demo, get the k6 gate green first; the
 OPA policy is a strong second beat that shows the gate can't be bypassed.
 
+## SIT gate — compatibility / regression checks
+
+The customer's brief for SIT is *"regression, compatibility, and performance checks."* The
+load gate above covers **performance**. This covers **regression + compatibility** — and
+it's the half that carries the core demo story.
+
+### The story: "200 OK is not the same as correct"
+
+The whole reason this pipeline exists is the **Renovate dependency-patch flow** (and the
+everyday case: a developer pushing a change). Both arrive the same way — as a **branch/PR**
+that the pipeline builds and gates.
+
+The danger with a dependency bump is *not* that it crashes — a crash is loud, and DEV's
+health + integration checks catch it immediately. The danger is the **silent** regression:
+
+> A patched JSON/serialization library (or a one-line dev change) still returns **`200 OK`**,
+> the app still boots, DEV's integration test still passes — but the API now **outputs the
+> wrong value or a changed shape.** A human reviewer skims the green checks and approves it.
+> That is exactly the class of bug that reaches production and corrupts a customer-facing
+> number.
+
+So SIT asserts the thing a status code can't: **is the output still correct, and is the
+contract still intact?** This is "compatibility" in the literal sense — *the patched
+artifact is backward-compatible in both its values and its interface.*
+
+### What the checks assert (against the deployed SIT backend)
+
+Run after the Helm deploy, in-cluster against `sit-banking-app-backend`, mirroring the DEV
+gate's step pattern (each check a step, any failure → stage fail → `StageRollback`):
+
+| Check | Asserts | The regression it catches |
+| ----- | ------- | -------------------------- |
+| **Data integrity** ⭐ | `GET /api/summary` → `totalBalance` **equals the sum of account balances** (`3245.67 + 12480.00 + 58210.42 = 73936.09`) | A `BigDecimal`/serialization/rounding change from a library bump — returns `200`, but the total is silently wrong. |
+| **Mortgage integrity** | `totalMortgageOutstanding` equals the sum of outstanding mortgage balances (`214500.00 + 142000.00 = 356500.00`) | Same class, second computed field. |
+| **Contract shape** | The summary + accounts responses still carry the expected fields (`accountCount`, `totalBalance`, `mortgageCount`, `totalMortgageOutstanding`; accounts have `nickname`, `balance`, `currency`) | A bump/change that **renames or drops a field** the frontend depends on — `200`, but the interface broke. |
+| **Negative path** | `GET /api/accounts/does-not-exist` → `404` | Error handling regressed to a `200`/`500`. |
+
+The starred **data-integrity** check is the heart of the gate — it's the most visceral
+"returns 200 but the money is wrong" failure, and the one a smoke test and a human reviewer
+both miss.
+
+### Why this belongs in SIT (not Staging)
+
+SIT and Staging catch the *same* broken patch at **different resolutions**:
+
+- **SIT (here):** "Did *this artifact's own* output change?" — single service, hit directly.
+  A failure is **diagnostically precise**: *the backend patch changed the API.* Caught as
+  early as it is detectable (**shift-left**) — before a canary is ever spent.
+- **Staging (E2E, later):** "Does the *whole system* still deliver the user journey?" —
+  full UI + routing + cross-service. Holistic but ambiguous: *something* in the wired system
+  broke. It's the behavioral backstop for what SIT structurally can't see.
+
+Not duplication — layers. The field-rename/wrong-total regression trips **SIT first, with a
+precise cause**; Staging E2E remains the catch-all for genuine end-to-end/journey failures.
+
+### The demo beat
+
+> "Renovate bumps our JSON library. It builds, it boots, DEV's integration passes — every
+> signal says *ship it*. But **SIT catches that the total balance is silently wrong** and
+> rolls the deploy back. That's the regression a human reviewer waves through and a canary
+> would have shipped to a customer — caught here, at SIT, before promotion."
+
+To demo the **red path**, the failure is planted on a branch (which is how both Renovate PRs
+and dev pushes arrive) — a one-line change in `BankingService.getSummary()` that skews
+`totalBalance`. `main` stays green; running the pipeline on the poison branch shows the SIT
+compatibility gate go red and trigger `StageRollback`, live.
+
 ## Immutable, promotable artifacts
 
 Images are tagged **`1.0.<+pipeline.sequenceId>`** (e.g. `banking-app-backend:1.0.41`),
