@@ -13,10 +13,19 @@
 //  • Two PARALLEL scenarios modelling real user journeys (the docs' "browse
 //    flow plus a checkout flow" pattern): a customer browsing accounts, and
 //    the fraud-check integration path being hammered independently.
-//  • Per-endpoint tagging so the results table breaks latency down by route.
-//  • Custom Trend metrics so we can gate the business-critical journeys
-//    tighter than the overall aggregate.
-//  • A layered threshold table: global SLOs + per-journey + per-endpoint.
+//  • Per-endpoint tagging + custom Trend metrics feed the RESULTS breakdown
+//    (Endpoint Statistics / per-journey timings) — great for the demo view.
+//
+// IMPORTANT — WHAT HARNESS ACTUALLY GATES ON
+// Harness's k6 gate only evaluates STANDARD k6 metrics. Custom metrics
+// (Trend/Rate) and tag-scoped sub-metric thresholds like
+// http_req_duration{name:summary} are NOT collected — they show "N/E"
+// (Not Evaluated) and do NOT gate. (Confirmed empirically: run #1 evaluated
+// only the 4 standard-metric thresholds; the 6 custom/tagged ones were N/E.
+// Harness's native threshold model has no field for tags or custom metrics.)
+// So the `thresholds` block below intentionally gates ONLY on standard
+// metrics. The tags and custom Trend/Rate metrics are kept for DISPLAY, not
+// gating — they enrich the results UI without pretending to be live gates.
 // ============================================================================
 
 import http from 'k6/http';
@@ -34,18 +43,18 @@ const HOST = /:\d+$/.test(RAW) ? RAW : `${RAW}:8080`;
 const ACCOUNTS = ['acc-001', 'acc-002', 'acc-003'];
 const MORTGAGES = ['mtg-001', 'mtg-002'];
 
-// ---- Custom metrics -------------------------------------------------------
-// Trends give us p95/p99/avg/max per business journey, independent of the
-// built-in http_req_duration (which aggregates every request together).
+// ---- Custom metrics (DISPLAY ONLY — Harness does not gate on these) -------
+// Trends give p95/p99/avg/max per business journey in the results view,
+// independent of the built-in http_req_duration (which aggregates everything).
 const browseDuration = new Trend('journey_browse_duration', true);
 const fraudDuration = new Trend('journey_fraud_duration', true);
-// A functional error = a 200 wasn't returned or the body was empty. Kept
-// separate from http_req_failed (transport-level) so we can gate on both.
+// A functional error = a 200 wasn't returned or the body was empty. Surfaced
+// in the results separately from http_req_failed (transport-level).
 const functionalErrors = new Rate('functional_errors');
 
 function get(path, name) {
-  // `name` tag groups identical URLs (e.g. per-account) into one results row
-  // and lets us write per-endpoint thresholds below.
+  // `name` tag groups identical URLs (e.g. per-account) into one row in the
+  // results' Endpoint Statistics — display only (Harness doesn't gate on tags).
   const res = http.get(`${HOST}${path}`, { tags: { name } });
   const ok = check(res, {
     'status is 200': (r) => r.status === 200,
@@ -94,23 +103,21 @@ export const options = {
 
   // ---- THE GATE ----------------------------------------------------------
   // Any breach => run Failed => SIT stage fails => no promotion.
-  // Layered so a regression is caught at the tightest relevant level.
+  //
+  // Gates ONLY on standard k6 metrics — the ones Harness actually evaluates
+  // (see the header note). Custom/tagged thresholds were dropped because they
+  // return N/E and would be dead gates. Every threshold here truly runs.
+  //
+  // Numbers are TUNED to the observed in-cluster baseline (run #1, 315k reqs):
+  //   overall p95 ~3ms, p99 ~597ms (a small cold-start/GC tail), 0% errors.
+  // p95 sits ~15x above the baseline — tight enough to catch a real regression
+  // (a dependency bump that adds tens of ms), loose enough to absorb jitter.
+  // p99 is kept generous so the startup tail doesn't flake a healthy deploy.
+  // Retune if the baseline shifts materially.
   thresholds: {
-    // Global SLOs across all traffic.
-    http_req_duration: ['p(95)<800', 'p(99)<1500'],
-    http_req_failed: ['rate<0.01'],       // <1% transport failures
-    functional_errors: ['rate<0.01'],     // <1% non-200 / empty bodies
-    checks: ['rate>0.99'],                // >99% of checks pass
-
-    // Per-journey SLOs — browse is the everyday path, held tight.
-    journey_browse_duration: ['p(95)<600'],
-    // Fraud path crosses a service boundary, so a slightly looser bound.
-    journey_fraud_duration: ['p(95)<1000'],
-
-    // Per-endpoint SLOs via the `name` tag — pinpoints WHICH route regressed.
-    'http_req_duration{name:summary}': ['p(95)<500'],
-    'http_req_duration{name:accounts_list}': ['p(95)<500'],
-    'http_req_duration{name:fraud_check}': ['p(95)<1000'],
+    http_req_duration: ['p(95)<50', 'p(99)<1000'],
+    http_req_failed: ['rate<0.01'],   // <1% transport-level failures
+    checks: ['rate>0.99'],            // >99% of status/body checks pass
   },
 };
 
