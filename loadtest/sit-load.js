@@ -23,7 +23,11 @@ import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 
-const HOST = __ENV.HOST_URL || 'http://localhost:8080';
+// Harness's "Host URL" field rejects a port, so it passes the origin only
+// (e.g. http://sit-banking-app-backend.banking-app-sit.svc.cluster.local). The
+// backend listens on 8080, so if HOST_URL has no explicit port we append :8080.
+const RAW = (__ENV.HOST_URL || 'http://localhost:8080').replace(/\/+$/, '');
+const HOST = /:\d+$/.test(RAW) ? RAW : `${RAW}:8080`;
 
 // Real SIT seed identifiers (from BankingService.java) — using fake IDs would
 // 404 and falsely trip the gate.
