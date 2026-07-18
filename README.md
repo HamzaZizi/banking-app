@@ -585,6 +585,43 @@ and dev pushes arrive) — a one-line change in `BankingService.getSummary()` th
 `totalBalance`. `main` stays green; running the pipeline on the poison branch shows the SIT
 compatibility gate go red and trigger `StageRollback`, live.
 
+#### EXAMPLE — the poison change (reference, not applied to `main`)
+
+This is the *shape* of the breaking change to plant on a demo branch. It stands in for what
+a dependency bump could do to a serialized number — the endpoint still returns `200`, but
+`totalBalance` is now wrong, so the SIT **Data Integrity - Total Balance** check fails and
+the stage rolls back. Nothing crashes; that's the point.
+
+`backend/src/main/java/com/harness/demo/cibanking/service/BankingService.java`, in
+`getSummary()`:
+
+```java
+// BEFORE (correct — the sum of account balances, 73936.09):
+BigDecimal totalBalance = accounts.stream()
+        .map(Account::getBalance)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+// AFTER (poison — simulates a rounding/serialization regression from a patch;
+// still returns 200, but the total is silently wrong):
+BigDecimal totalBalance = accounts.stream()
+        .map(Account::getBalance)
+        .reduce(BigDecimal.ZERO, BigDecimal::add)
+        .setScale(0, java.math.RoundingMode.DOWN);   // 73936.09 -> 73936, contract broken
+```
+
+Demo flow:
+
+1. `git checkout -b demo/regression-patch`, apply the change, push.
+2. Run `hamza_devx` with the `build` input set to `demo/regression-patch` (same as a Renovate
+   PR branch — see "Building a PR branch" below).
+3. Build ✅ → DEV deploy + health ✅ (it boots and responds) → **SIT compatibility gate ❌**
+   on *Data Integrity - Total Balance* → `StageRollback`. Promotion stops; prod never sees it.
+4. Reset for the green run: `git checkout main` (the branch is throwaway — never merged).
+
+> The narration: *"Every early signal was green — it compiled, it deployed, it answered
+> 200. Only the SIT compatibility gate, which checks the value is actually correct, caught
+> it."* Swap the `setScale` line for a renamed field to demo the **contract** check instead.
+
 ## Immutable, promotable artifacts
 
 Images are tagged **`1.0.<+pipeline.sequenceId>`** (e.g. `banking-app-backend:1.0.41`),
