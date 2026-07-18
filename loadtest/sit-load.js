@@ -114,10 +114,22 @@ export const options = {
   // (a dependency bump that adds tens of ms), loose enough to absorb jitter.
   // p99 is kept generous so the startup tail doesn't flake a healthy deploy.
   // Retune if the baseline shifts materially.
+  //
+  // abortOnFail: on the ERROR thresholds we fail FAST — if the build is
+  // throwing errors / failing checks there's no value loading it for the full
+  // run, so k6 aborts the instant the breach is real (the run is marked
+  // Failed → SIT stage fails → rollback). delayAbortEval:'30s' skips the
+  // ramp-up window so a transient early blip (1 failure = 100% rate on the
+  // first sample) can't false-abort a healthy deploy. Latency thresholds do
+  // NOT abort — p95/p99 need enough samples to be a trustworthy verdict.
   thresholds: {
     http_req_duration: ['p(95)<50', 'p(99)<1000'],
-    http_req_failed: ['rate<0.01'],   // <1% transport-level failures
-    checks: ['rate>0.99'],            // >99% of status/body checks pass
+    http_req_failed: [
+      { threshold: 'rate<0.01', abortOnFail: true, delayAbortEval: '30s' },
+    ],
+    checks: [
+      { threshold: 'rate>0.99', abortOnFail: true, delayAbortEval: '30s' },
+    ],
   },
 };
 
