@@ -283,7 +283,8 @@ Stages:
    validation against the downstream fraud-check.)*
 4. **Deploy to SIT** — promotes the same artifact, then runs a k6 load test as a
    performance gate. *(SIT = performance / regression — see "SIT gate" below.)*
-5. **Deploy to Staging** — canary. *(STAGING = end-to-end.)*
+5. **Deploy to Staging** — canary, then a **chaos-under-load resilience gate**. *(STAGING =
+   resilience + end-to-end — see "Staging gate" below.)*
 6. **Deploy to Prod** — canary + progressive rollout with verification and auto-rollback.
 
 ## DEV gate — integration tests
@@ -621,6 +622,132 @@ Demo flow:
 > The narration: *"Every early signal was green — it compiled, it deployed, it answered
 > 200. Only the SIT compatibility gate, which checks the value is actually correct, caught
 > it."* Swap the `setScale` line for a renamed field to demo the **contract** check instead.
+
+## Staging gate — chaos-under-load resilience testing
+
+Where SIT proves the patch *performs* on a **healthy** cluster, **Staging proves it stays
+healthy while something breaks underneath it.** This is the chaos-engineering half of the
+brief: don't just drive load at a happy cluster — **inject a real failure *while* the app
+is under load** and prove the service degrades gracefully and recovers, without breaching
+its availability, error, or latency SLOs. If it can't survive a single pod dying under
+traffic in Staging, it has no business being canaried to prod.
+
+### The design: fault × load, in parallel
+
+Two Harness Resilience objects run **at the same time**, after the canary/primary deploy:
+
+- **A k6 load test** (`stagingbankingappload`) — the *same* script as the SIT gate (parallel
+  browse + fraud journeys), pointed at the in-cluster staging backend
+  (`http://staging-banking-app-backend.banking-app-staging.svc.cluster.local`). It supplies
+  the **traffic**.
+- **A chaos experiment** (`demo-staging-backend-pod-delete-resilience-gate`) — a
+  `pod-delete` fault that kills a `staging-banking-app-backend` pod. It supplies the
+  **disruption.**
+
+Run alone, each is only half a test: **load-only** never disturbs the system, and
+**chaos-only** has no traffic to measure error rate or latency against. Run **together**,
+they answer the real question — *when a pod dies mid-traffic, does the service stay up,
+keep serving cleanly, stay fast, and recover?* Raw k6 has no concept of coordinated fault
+injection; Harness runs the fault and the load as one gated, recorded step.
+
+### What actually decides pass/fail — the probes
+
+The gate isn't "did the fault run" — it's **what the probes measured during the fault.**
+The experiment carries the default pod-level probe plus **three Prometheus probes** that
+query the cluster's in-cluster Prometheus (kube-prometheus-stack) against the backend's
+Micrometer metrics (`http_server_requests_seconds_*`, scraped in Staging via a
+ServiceMonitor). Each is evaluated at the **start and end** of the fault (SOT + EOT):
+
+| Probe | What it queries | Passes when | Why it matters |
+| ----- | --------------- | ----------- | -------------- |
+| **Availability** (`staging-be-replicas`) ⭐ | `kube_deployment_status_replicas_available` for the staging backend | **`>= 1`** replica stays Ready throughout | The core availability guarantee: killing one pod may dip 2→1, but it must **never hit 0** — no full outage during disruption. Works even with no traffic. |
+| **Error rate** (`staging-be-error-rate`) | `rate(...{outcome="SERVER_ERROR"}) / rate(...all)` — the 5xx ratio | **`< 0.05`** (under a 5% error budget) | Proves the pod death is **absorbed**, not passed to users as 5xx. Only meaningful under k6 traffic. |
+| **Latency** (`staging-be-p95`) | `histogram_quantile(0.95, …)` over request durations (actuator paths excluded) | **`< 0.5`** (p95 under 500 ms) | Proves recovery doesn't blow the **latency SLO** — a survivable-but-slow service is still a regression. Only meaningful under k6 traffic. |
+
+The starred **availability** probe is the heart of the gate. The `>= 1` threshold (not
+`>= 2`) is deliberate: a single `pod-delete` *legitimately* takes the deployment from 2
+Ready replicas to 1 for a few seconds — that's the disruption being tolerated, not a
+failure. Dropping to **0** is the outage we refuse to promote.
+
+> **No-data safety.** The error-rate and latency queries are wrapped (`clamp_min(…,1)` and
+> `or vector(0)`) so that *zero traffic* reads as **healthy (0)**, not `NaN`. Without this a
+> chaos-only run — or the ramp-up window before load arrives — would false-fail, because
+> `NaN < threshold` is `false`. The guards only engage below ~1 req/s, so they never soften
+> the gate under real load.
+
+### What this proves — and the regressions it catches
+
+A pod-delete under load is a proxy for everyday production reality: node drains during
+cluster upgrades, spot-instance reclaims, autoscaler churn, OOM kills, a crashing pod. The
+gate proves the app's **resilience wiring** actually works:
+
+- `replicas: 2` + a **PodDisruptionBudget** (`minAvailable: 1`) so a disruption can't evict
+  everything at once,
+- **topologySpreadConstraints** so the two replicas aren't co-located,
+- a **rolling update** (`maxUnavailable: 0`) so replacement capacity comes up before old
+  capacity leaves.
+
+Because the gate is fail-closed and bound to the artifact, it catches **resilience
+regressions** a functional test never would — someone drops `replicas` to 1, deletes the
+PDB, a dependency bump slows startup so the replacement pod lags, or a readiness probe is
+misconfigured so traffic hits a not-ready pod. Each of those still passes DEV and SIT (the
+app *works* and *performs*) but would surface here as a breached probe → stage fail →
+`StageRollback` → **no promotion to prod.**
+
+> The demo beat: *"SIT proved the patch is correct and fast. Staging kills a pod while
+> hammering it with traffic and proves it stays up, stays clean, and stays fast anyway —
+> so when prod canaries it, we already know it survives the cluster misbehaving."*
+
+### Where it runs — and why *after* the canary, not inside it
+
+Staging uses a **canary** strategy, so the stage's execution has three sibling step groups
+in order:
+
+1. **Canary Deployment** — `HelmCanaryDeploy` (count: 1) brings up a *single* canary pod,
+   then `HelmCanaryDelete` tears it back down.
+2. **Primary Deployment** — `HelmDeploy` does the real rollout: `replicas: 2` behind the
+   PDB + topologySpread.
+3. **Resilience Gate** — the parallel LoadTest ∥ Chaos, added here.
+
+The gate is deliberately the **third** group — **after** the full Primary deployment —
+**not** between `HelmCanaryDeploy` and `HelmCanaryDelete`. Injecting the `pod-delete` during
+the canary would be wrong for three concrete reasons:
+
+- **The canary is a single pod** (`count: 1`). A `pod-delete` takes it **1 → 0**, which
+  false-fails the `>= 1` availability probe every time — you'd be measuring "I killed the
+  only pod," not resilience.
+- **The fault and all three probes target the *primary* Deployment**
+  (`staging-banking-app-backend`), not the transient canary workload. There'd be nothing for
+  them to assert against mid-canary.
+- **The resilience premise only exists in the primary.** `replicas: 2`, the
+  PodDisruptionBudget (`minAvailable: 1`), topologySpread, and `maxUnavailable: 0` are what
+  let the service survive a pod loss — and they're only live once `HelmDeploy` finishes.
+  Chaos-testing the one-pod canary also defeats the canary's whole minimal-blast-radius
+  point.
+
+So: **deploy the real thing, then attack the real thing.** The group is guarded to the
+backend service only (`when: <+service.identifier> == "bankingappbackend"`), mirroring the
+SIT `LoadTest` step pattern. A breach fails the stage and triggers the same
+`StageRollback` / `HelmRollback` as every other gate.
+
+### The timing that makes it honest — why the ramp-up is 30s
+
+The fault must land **while traffic is actually flowing**, or the error-rate and latency
+probes measure an idle system and prove nothing. The k6 ramp-up is therefore kept **short
+(30s)**: full steady-state load is established well before the `pod-delete` fires, so the
+golden-signal probes see real traffic across the whole fault window.
+
+This was originally **120s**, which was too slow: against a ~200s run the fault injected
+while load was still climbing — the pods were barely stressed, so error-rate/p95 read
+near-idle exactly when the disruption hit. Dropping to 30s means the service is at full
+strength for the entire disruption.
+
+> **Where the ramp actually lives.** The effective ramp is the k6 script's own
+> `scenarios.stages` (a 30s ramp → steady hold), *not* the Harness load-test builder input.
+> Because the inline script defines explicit `options.scenarios`, k6 uses that schedule and
+> the builder's `rampUpTimeSec`/`targetUsers`/`durationSeconds` inputs are inert (the script
+> only reads `HOST_URL` from the environment). The builder input is aligned to 30s anyway so
+> the config doesn't mislead anyone reading it.
 
 ## Immutable, promotable artifacts
 
