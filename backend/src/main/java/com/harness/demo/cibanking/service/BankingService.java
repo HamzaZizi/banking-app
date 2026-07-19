@@ -3,6 +3,7 @@ package com.harness.demo.cibanking.service;
 import com.harness.demo.cibanking.model.Account;
 import com.harness.demo.cibanking.model.Mortgage;
 import com.harness.demo.cibanking.model.Transaction;
+import org.apache.commons.text.StringSubstitutor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -122,11 +123,21 @@ public class BankingService {
         BigDecimal totalBalance = accounts.stream().map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalMortgageOutstanding = mortgages.stream().map(Mortgage::getOutstandingBalance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Build a short human-readable portfolio line for the dashboard header.
+        // Value-only substitution (no interpolator lookups), so the counts below
+        // are simply rendered into the template.
+        String statusMessage = new StringSubstitutor(Map.of(
+                "accounts", String.valueOf(accounts.size()),
+                "mortgages", String.valueOf(mortgages.size())
+        )).replace("Portfolio: ${accounts} accounts, ${mortgages} mortgages");
+
         return Map.of(
                 "accountCount", accounts.size(),
                 "totalBalance", totalBalance,
                 "mortgageCount", mortgages.size(),
-                "totalMortgageOutstanding", totalMortgageOutstanding
+                "totalMortgageOutstanding", totalMortgageOutstanding,
+                "statusMessage", statusMessage
         );
     }
 
