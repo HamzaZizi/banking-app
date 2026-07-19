@@ -19,10 +19,17 @@
 // decides pass/fail. If you ever want a k6 backstop, add non-aborting,
 // display-only thresholds — never abortOnFail in the CV window.
 //
-// COVERAGE — the steady-state MUST outlast the Verify duration
-// Verify runs 5 min. The scenario stages below hold steady load for ~5.5 min
-// (total run ~6.3 min incl. ramp), so traffic covers the whole CV window with
-// margin on both ends. If you change the Verify duration, re-stretch these.
+// COVERAGE — the steady-state MUST outlast the Verify step's WALL TIME, not
+// just its configured 5-min analysis duration. In practice the Verify step
+// takes ~8.5 min wall time for a 5-min duration: it spends ~2-3 min on
+// pods-ready + first-scrape data collection before the analysis clock starts,
+// and the rate([2m]) PromQL needs a 2-min warm-up on top. If load ramps down
+// while CV is still analysing, the canary goes idle and the SYMPTOM metrics
+// (latency, 5xx, GC pause) "heal" instantly (a retained-memory leak stops
+// allocating the moment traffic stops), diluting the tail buckets toward
+// healthy. So we hold steady load for ~9 min (total run ~10 min incl. ramp) to
+// cover the entire wall-clock window with margin. If you change the Verify
+// duration, re-stretch these to (wall_time + ~1.5 min margin).
 //
 // The target Service load-balances across all pods (baseline + canary), so the
 // canary receives its share of traffic — exactly what CV needs to compare the
@@ -65,7 +72,7 @@ function get(path, name) {
 
 // ============================================================================
 // SCENARIOS — two workloads run in PARALLEL, sized to hold steady load across
-// the full 5-minute Verify window (steady stage ~5.5m; total run ~6.3m).
+// the full Verify WALL-CLOCK window (steady stage ~9m; total run ~10m).
 // ============================================================================
 export const options = {
   scenarios: {
@@ -78,7 +85,7 @@ export const options = {
       gracefulStop: '10s',
       stages: [
         { duration: '30s', target: 15 },   // ramp up
-        { duration: '5m30s', target: 15 }, // steady state — covers the CV window
+        { duration: '9m', target: 15 },    // steady state — outlasts CV's ~8.5m wall time
         { duration: '20s', target: 0 },    // ramp down
       ],
     },
@@ -94,7 +101,7 @@ export const options = {
       gracefulStop: '10s',
       stages: [
         { duration: '30s', target: 25 },
-        { duration: '5m10s', target: 25 }, // steady state — covers the CV window
+        { duration: '8m40s', target: 25 }, // steady state — outlasts CV's ~8.5m wall time
         { duration: '20s', target: 0 },
       ],
     },
