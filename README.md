@@ -749,6 +749,116 @@ strength for the entire disruption.
 > only reads `HOST_URL` from the environment). The builder input is aligned to 30s anyway so
 > the config doesn't mislead anyone reading it.
 
+## Prod gate — continuous verification (canary analysis)
+
+SIT proved the patch is *correct* and *fast*; Staging proved it *survives a pod dying under
+load*. **Prod is where we watch the new code do real work against real traffic and let
+Harness decide, from the metrics, whether it's behaving like the version it's replacing.**
+This is **Continuous Verification (CV)**: deploy a single canary pod alongside the healthy
+baseline, point CV at Prometheus, and have it compare the canary's golden signals to the
+baseline for a fixed window before we roll the change out to everything.
+
+### The strategy: canary → verify → promote (or roll back)
+
+Prod uses a **NativeHelm canary**, so the stage runs these groups in order:
+
+1. **Canary Deployment** — `HelmCanaryDeploy` brings up a canary pod from the new artifact,
+   load-balanced into the same Service as the baseline (which Prod scales to **5 replicas**
+   via a Harness environment override on `serviceVariables.replicas`, base default `2`).
+2. **Verification** — the `Verify` step runs canary analysis for **5 minutes**, in parallel
+   with a traffic generator (and, for the red-path demo, a chaos fault).
+3. **Canary Delete** — `HelmCanaryDelete` removes the canary pod.
+4. **Primary Deployment** — `HelmDeploy` rolls the new artifact out to all replicas.
+
+If verification fails, the stage fails **before** the primary rollout ever happens — the
+baseline was never touched, so the blast radius is one canary pod and an automatic rollback.
+
+### CV is the gate — not a k6 threshold
+
+This is the key difference from the SIT and Staging gates. There, a breached **k6
+threshold** marks the run Failed and fails the stage. In Prod, **the `Verify` (CV) step is
+the sole arbiter.** The load test that runs beside it ships **no thresholds at all** — its
+only job is to put sustained, realistic traffic on the Service so the canary does real work
+and any regression actually *manifests* in the metrics CV is watching. A k6 threshold breach
+here would steal the verdict from CV (and an `abortOnFail` would cut traffic short, starving
+CV of signal exactly when it matters). See `loadtest/prod-load.js` — same two journeys as
+the SIT/Staging script, but the entire `thresholds` block is removed and the steady-state
+stages are stretched to ~5.5 min so traffic covers the whole 5-minute verification window
+with margin on both ends.
+
+### What CV measures — the Prometheus health source
+
+CV is backed by a **Monitored Service Template** (`prometheuscv`) wired to the in-cluster
+Prometheus, so it resolves cleanly even though the Prod stage deploys two services via
+`useFromStage` (which is exactly why a default autocreated monitored service *couldn't* be
+selected here — the template is the fix). It carries **five Prometheus queries** over the
+backend's cAdvisor / kube-state / Micrometer metrics:
+
+| Metric | Query (scoped to `namespace="banking-app-prod"`) | Category | Why it's watched |
+| ------ | ------------------------------------------------ | -------- | ---------------- |
+| **Container memory** | `sum(container_memory_working_set_bytes{container="backend"}) by (pod)` | Infrastructure | The leak signature — working set climbing toward the 1Gi limit. |
+| **GC live data size** | `jvm_gc_live_data_size_bytes{application="ci-banking-backend"}` | Infrastructure | Retained heap after GC — a true leak keeps this rising, transient load doesn't. |
+| **Container restarts** | `kube_pod_container_status_restarts_total{container="backend"}` | Infrastructure | OOMKill / crash detector — the terminal symptom. |
+| **Max request latency** | `http_server_requests_seconds_max{...,uri="/api/summary"}` | Performance / ResponseTime | GC pressure and saturation surface here first as latency. |
+| **Avg response time** | `rate(...seconds_sum[2m]) / rate(...seconds_count[2m]) by (pod)` | Performance / ResponseTime | Per-pod latency the canary-vs-baseline comparison judges. |
+
+**Handling ephemeral pods (the important bit).** Canary pods get new names on every deploy,
+so the queries **do not** hard-code a pod name. Instead they leave `pod` out of the filter
+and set **`serviceInstanceFieldName: pod`** — Harness reads the pod names out of each
+series' `pod` label at runtime and fans the analysis out per pod, tracking which pods are
+canary vs baseline itself. (The authoring UI's preview will complain "too many records" —
+that's preview-only; don't re-add a pod filter to silence it or you'll pin CV to a dead pod.)
+
+### Two ways CV can fail
+
+- **Canary analysis** (`type: Canary`, sensitivity **HIGH**) — statistically compares the
+  canary pod's signals to the baseline over the window. A canary that's meaningfully slower
+  or heavier than its peers fails the analysis.
+- **Fail-fast metric thresholds** — absolute backstops on the Custom metric pack that trip
+  regardless of the comparison, so a clear breach doesn't have to wait out the full window:
+
+  | Metric | Threshold | Action |
+  | ------ | --------- | ------ |
+  | Container restarts | `> 0` | **FailImmediately** |
+  | Container memory | `> 1000000000` (~0.93 GiB, just under the 1Gi limit) | **FailImmediately** |
+  | Max request latency | `> 1s` | **FailAfterConsecutiveOccurrence** (count 2) |
+
+### What we're planning to test in Prod — the red paths
+
+The happy path is: canary comes up, load flows, its metrics track the baseline for 5
+minutes, CV passes, primary rolls out. To prove CV actually *catches* a bad deploy, we drive
+two independent red paths — both **originating in the new canary**, both landing during the
+verification window:
+
+1. **A code regression — the audit-trail leak.** A patch introduces an **unbounded in-memory
+   audit trail** that grows per request. Under the parallel load, the canary's working set
+   climbs superlinearly → GC live-data size keeps rising → latency degrades → it OOMKills.
+   CV sees the canary diverge from the baseline (and trips the memory / restart fail-fast),
+   fails the stage, and rolls back — **the leak never reaches the primary fleet.** This is
+   the headline story: a real bug in real code, caught by metrics rather than by a test
+   asserting a value.
+
+2. **Chaos faults — same signals, no rebuild.** For a repeatable, instant demo we inject the
+   *same signature* with chaos instead of code. Two experiments (kept **disabled by default**,
+   flipped on for the red-path run) target the Prod backend for 360s so they span the whole
+   window:
+
+   | Experiment | Fault | What it moves | Signal probe |
+   | ---------- | ----- | ------------- | ------------ |
+   | `prod-be-memory-hog-cv` | `pod-memory-hog` (~850 MB) | working set → 1Gi limit → OOMKill | `prod-be-memory` (Prometheus, `< 800 MiB`) |
+   | `prod-be-network-latency-cv` | `pod-network-latency` (2000 ms) | request latency past 1s | `prod-be-p95` (Prometheus, `< 500 ms`) |
+
+   Each experiment carries its matching Prometheus probe plus the default pod-level health
+   probe. The memory hog mirrors the audit-leak narrative (and trips the memory + restart
+   fail-fast); the latency fault gives the cleaner "canary analysis flagged a latency
+   regression" story.
+
+> The demo beat: *"SIT and Staging vouched for the artifact before it ever reached prod. In
+> prod we still don't trust it blindly — we canary one pod, push real traffic at it, and let
+> CV compare it to the live baseline. Introduce a memory leak (or inject one with chaos) and
+> CV catches the divergence, fails the canary, and rolls back before a single baseline pod is
+> touched."*
+
 ## Immutable, promotable artifacts
 
 Images are tagged **`1.0.<+pipeline.sequenceId>`** (e.g. `banking-app-backend:1.0.41`),
