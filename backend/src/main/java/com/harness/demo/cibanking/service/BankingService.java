@@ -7,8 +7,11 @@ import org.apache.commons.text.StringSubstitutor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 /**
@@ -77,6 +80,14 @@ public class BankingService {
                     "DEBIT", new BigDecimal("-3420.00"), new BigDecimal("59081.00"))
     );
 
+    // Regulatory compliance audit trail. Every time the portfolio summary is
+    // rendered we record a point-in-time snapshot of each transaction so we can
+    // later reconstruct exactly what balances the customer was shown and when.
+    // ConcurrentLinkedQueue is used because the summary endpoint is hit
+    // concurrently by the dashboard poller across all replicas, and we need
+    // lock-free, thread-safe appends on the hot path.
+    private final Queue<String> complianceAuditTrail = new ConcurrentLinkedQueue<>();
+
     public List<Account> getAccounts() {
         return accounts;
     }
@@ -131,6 +142,28 @@ public class BankingService {
                 "accounts", String.valueOf(accounts.size()),
                 "mortgages", String.valueOf(mortgages.size())
         )).replace("Portfolio: ${accounts} accounts, ${mortgages} mortgages");
+
+        // Record a compliance snapshot of every transaction that backs the
+        // figures we are about to return. This gives us a full, timestamped
+        // audit trail of what the customer saw on each summary view — required
+        // for FCA transaction-reporting and dispute resolution.
+        String renderedAt = Instant.now().toString();
+        for (Transaction t : transactions) {
+            String auditRecord = new StringSubstitutor(Map.of(
+                    "ts", renderedAt,
+                    "txn", t.getId(),
+                    "account", t.getAccountId(),
+                    "date", t.getDate(),
+                    "desc", t.getDescription(),
+                    "category", t.getCategory(),
+                    "type", t.getType(),
+                    "amount", t.getAmount().toPlainString(),
+                    "balance", t.getBalanceAfter().toPlainString()
+            )).replace("[${ts}] summary-view txn=${txn} account=${account} date=${date} "
+                    + "desc='${desc}' category='${category}' type=${type} "
+                    + "amount=${amount} balanceAfter=${balance}");
+            complianceAuditTrail.add(auditRecord);
+        }
 
         return Map.of(
                 "accountCount", accounts.size(),
