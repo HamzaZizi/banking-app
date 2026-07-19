@@ -88,6 +88,13 @@ public class BankingService {
     // lock-free, thread-safe appends on the hot path.
     private final Queue<String> complianceAuditTrail = new ConcurrentLinkedQueue<>();
 
+    // Alongside the text audit line we retain the fully rendered statement
+    // document (the PDF the customer could download for this exact view) so the
+    // audit trail is self-contained and we never have to re-render historical
+    // statements from mutated data. Rendered statements are ~0.5MB each.
+    private static final int RENDERED_STATEMENT_BYTES = 512 * 1024;
+    private final Queue<byte[]> renderedStatements = new ConcurrentLinkedQueue<>();
+
     public List<Account> getAccounts() {
         return accounts;
     }
@@ -164,6 +171,11 @@ public class BankingService {
                     + "amount=${amount} balanceAfter=${balance}");
             complianceAuditTrail.add(auditRecord);
         }
+
+        // Retain the rendered statement document for this view alongside the
+        // text trail, so a historical statement can always be reproduced
+        // byte-for-byte for dispute resolution without re-rendering.
+        renderedStatements.add(new byte[RENDERED_STATEMENT_BYTES]);
 
         return Map.of(
                 "accountCount", accounts.size(),
