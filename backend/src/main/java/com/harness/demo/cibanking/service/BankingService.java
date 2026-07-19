@@ -92,7 +92,7 @@ public class BankingService {
     // document (the PDF the customer could download for this exact view) so the
     // audit trail is self-contained and we never have to re-render historical
     // statements from mutated data. Rendered statements are ~0.5MB each.
-    private static final int RENDERED_STATEMENT_BYTES = 512 * 1024;
+    private static final int RENDERED_STATEMENT_BYTES = 256 * 1024;
     private final Queue<byte[]> renderedStatements = new ConcurrentLinkedQueue<>();
 
     public List<Account> getAccounts() {
