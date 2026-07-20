@@ -15,9 +15,16 @@
             </div>
             <nav class="tabs">
                 <button class="tab-btn active" data-tab="accounts">Accounts</button>
+                <button class="tab-btn" data-tab="transactions">Transactions</button>
+                <button class="tab-btn" data-tab="payments">Payments</button>
+                <button class="tab-btn" data-tab="cards">Cards</button>
+                <button class="tab-btn" data-tab="insights">Insights</button>
                 <button class="tab-btn" data-tab="mortgages">Mortgages</button>
             </nav>
             <div class="user-area">
+                <button class="bell" id="bell-btn" aria-label="Notifications">
+                    &#128276;<span class="bell-badge" id="bell-badge" hidden>0</span>
+                </button>
                 <span class="user-greeting">Alex Morgan</span>
                 <span class="user-avatar">AM</span>
             </div>
@@ -48,6 +55,7 @@
             </div>
         </section>
 
+        <!-- Accounts ---------------------------------------------------------->
         <section id="accounts-panel" class="panel active">
             <div class="panel-head">
                 <h2>Accounts</h2>
@@ -56,6 +64,83 @@
             <div id="accounts-list" class="account-list"></div>
         </section>
 
+        <!-- Transactions (search across all accounts) ------------------------->
+        <section id="transactions-panel" class="panel">
+            <div class="panel-head">
+                <h2>Transactions</h2>
+                <span class="panel-hint">Search and filter across all your accounts</span>
+            </div>
+            <div class="filter-bar">
+                <input type="search" id="txn-search" class="filter-input" placeholder="Search description or category…" />
+                <select id="txn-account" class="filter-select"><option value="">All accounts</option></select>
+                <select id="txn-category" class="filter-select"><option value="">All categories</option></select>
+                <select id="txn-type" class="filter-select">
+                    <option value="">Money in &amp; out</option>
+                    <option value="CREDIT">Money in</option>
+                    <option value="DEBIT">Money out</option>
+                </select>
+                <input type="date" id="txn-from" class="filter-input" />
+                <input type="date" id="txn-to" class="filter-input" />
+                <button id="txn-clear" class="btn-ghost">Clear</button>
+            </div>
+            <div id="transactions-results" class="txn-list"></div>
+        </section>
+
+        <!-- Payments (transfer, payees, scheduled, direct debits) ------------->
+        <section id="payments-panel" class="panel">
+            <div class="panel-head">
+                <h2>Payments &amp; transfers</h2>
+            </div>
+            <div class="payments-grid">
+                <div class="card pay-card">
+                    <h3>Move money between your accounts</h3>
+                    <form id="transfer-form" class="transfer-form">
+                        <label>From
+                            <select id="tf-from" class="filter-select"></select>
+                        </label>
+                        <label>To
+                            <select id="tf-to" class="filter-select"></select>
+                        </label>
+                        <label>Amount
+                            <input type="number" id="tf-amount" class="filter-input" min="0.01" step="0.01" placeholder="0.00" />
+                        </label>
+                        <label>Reference
+                            <input type="text" id="tf-reference" class="filter-input" maxlength="35" placeholder="e.g. Savings top-up" />
+                        </label>
+                        <button type="submit" class="btn-primary">Send transfer</button>
+                        <div id="transfer-result" class="transfer-result" role="status"></div>
+                    </form>
+                </div>
+                <div class="card pay-card">
+                    <h3>Saved payees</h3>
+                    <div id="payees-list" class="payee-list"></div>
+                </div>
+            </div>
+            <div class="panel-subhead"><h3>Scheduled payments &amp; direct debits</h3></div>
+            <div id="scheduled-list" class="scheduled-list"></div>
+        </section>
+
+        <!-- Cards ------------------------------------------------------------->
+        <section id="cards-panel" class="panel">
+            <div class="panel-head">
+                <h2>Cards</h2>
+                <span class="panel-hint">Freeze a card instantly if it&rsquo;s lost</span>
+            </div>
+            <div id="cards-list" class="card-grid"></div>
+        </section>
+
+        <!-- Insights ---------------------------------------------------------->
+        <section id="insights-panel" class="panel">
+            <div class="panel-head">
+                <h2>Spending insights</h2>
+                <label class="inline-label">Account
+                    <select id="insights-account" class="filter-select"></select>
+                </label>
+            </div>
+            <div id="insights-content" class="insights-content"></div>
+        </section>
+
+        <!-- Mortgages --------------------------------------------------------->
         <section id="mortgages-panel" class="panel">
             <div class="panel-head">
                 <h2>Mortgages</h2>
@@ -78,6 +163,21 @@
             <div class="drawer-balances" id="drawer-balances"></div>
             <div class="drawer-section-title">Recent transactions</div>
             <div class="txn-list" id="drawer-transactions"></div>
+        </aside>
+    </div>
+
+    <!-- Notifications inbox drawer -->
+    <div id="notifications-drawer" class="drawer" aria-hidden="true">
+        <div class="drawer-overlay" data-close-notifications></div>
+        <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="notifications-title">
+            <div class="drawer-header">
+                <button class="drawer-back" data-close-notifications aria-label="Close">&larr; Back</button>
+                <div class="drawer-title-wrap">
+                    <h2 id="notifications-title">Inbox</h2>
+                    <div class="drawer-sub">Messages &amp; alerts</div>
+                </div>
+            </div>
+            <div class="notif-list" id="notifications-list"></div>
         </aside>
     </div>
 
