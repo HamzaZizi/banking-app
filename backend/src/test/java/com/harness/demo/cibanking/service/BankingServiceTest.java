@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the in-memory banking data and derived summary logic.
@@ -120,5 +121,154 @@ class BankingServiceTest {
 
         Map<String, Object> summary = service.getSummary();
         assertThat((BigDecimal) summary.get("totalBalance")).isEqualByComparingTo(expected);
+    }
+
+    // ---- searchTransactions -------------------------------------------------
+
+    @Test
+    void searchTransactions_withNoFilters_returnsAllMostRecentFirst() {
+        var txns = service.searchTransactions(null, null, null, null, null, null);
+        assertThat(txns).isNotEmpty();
+        // sorted date-descending
+        for (int i = 1; i < txns.size(); i++) {
+            assertThat(txns.get(i - 1).getDate())
+                    .isGreaterThanOrEqualTo(txns.get(i).getDate());
+        }
+    }
+
+    @Test
+    void searchTransactions_byQueryMatchesDescriptionCaseInsensitive() {
+        var txns = service.searchTransactions("salary", null, null, null, null, null);
+        assertThat(txns).isNotEmpty();
+        assertThat(txns).allSatisfy(t ->
+                assertThat(t.getDescription().toLowerCase() + " " + t.getCategory().toLowerCase())
+                        .contains("salary"));
+    }
+
+    @Test
+    void searchTransactions_byCategoryAndType() {
+        var txns = service.searchTransactions(null, "Income", "CREDIT", null, null, null);
+        assertThat(txns).isNotEmpty();
+        assertThat(txns).allSatisfy(t -> {
+            assertThat(t.getCategory()).isEqualTo("Income");
+            assertThat(t.getType()).isEqualTo("CREDIT");
+        });
+    }
+
+    @Test
+    void searchTransactions_byAccountAndDateRange() {
+        var txns = service.searchTransactions(null, null, null, "acc-001", "2026-07-01", "2026-07-31");
+        assertThat(txns).isNotEmpty();
+        assertThat(txns).allSatisfy(t -> {
+            assertThat(t.getAccountId()).isEqualTo("acc-001");
+            assertThat(t.getDate()).isBetween("2026-07-01", "2026-07-31");
+        });
+    }
+
+    @Test
+    void getCategories_returnsSortedDistinctValues() {
+        var categories = service.getCategories();
+        assertThat(categories).isNotEmpty();
+        assertThat(categories).doesNotHaveDuplicates();
+        assertThat(categories).isSorted();
+    }
+
+    // ---- insights & statements ---------------------------------------------
+
+    @Test
+    void getInsights_returnsBreakdownForKnownAccount() {
+        Map<String, Object> insights = service.getInsights("acc-001");
+        assertThat(insights).isNotNull();
+        assertThat(insights.get("accountId")).isEqualTo("acc-001");
+        assertThat((BigDecimal) insights.get("moneyIn")).isPositive();
+        assertThat((BigDecimal) insights.get("moneyOut")).isPositive();
+        assertThat(insights.get("categories")).isInstanceOf(List.class);
+    }
+
+    @Test
+    void getInsights_returnsNullForUnknownAccount() {
+        assertThat(service.getInsights("nope")).isNull();
+    }
+
+    @Test
+    void getStatements_groupsByMonthForKnownAccount() {
+        var statements = service.getStatements("acc-001");
+        assertThat(statements).isNotNull();
+        assertThat(statements).isNotEmpty();
+        assertThat(statements.get(0)).containsKeys("period", "transactionCount", "moneyIn", "moneyOut");
+    }
+
+    @Test
+    void getStatements_returnsNullForUnknownAccount() {
+        assertThat(service.getStatements("nope")).isNull();
+    }
+
+    // ---- updateNickname -----------------------------------------------------
+
+    @Test
+    void updateNickname_renamesKnownAccount() {
+        Account updated = service.updateNickname("acc-002", "Rainy Day Fund");
+        assertThat(updated).isNotNull();
+        assertThat(updated.getNickname()).isEqualTo("Rainy Day Fund");
+        assertThat(service.getAccount("acc-002").getNickname()).isEqualTo("Rainy Day Fund");
+    }
+
+    @Test
+    void updateNickname_returnsNullForUnknownAccount() {
+        assertThat(service.updateNickname("nope", "X")).isNull();
+    }
+
+    // ---- transfer -----------------------------------------------------------
+
+    @Test
+    void transfer_movesMoneyAndKeepsTotalConstant() {
+        BigDecimal totalBefore = service.getAccounts().stream()
+                .map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, Object> result = service.transfer("acc-001", "acc-002",
+                new BigDecimal("100.00"), "Test");
+        assertThat(result.get("status")).isEqualTo("COMPLETED");
+
+        BigDecimal totalAfter = service.getAccounts().stream()
+                .map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(totalAfter).isEqualByComparingTo(totalBefore);
+    }
+
+    @Test
+    void transfer_postsTwoNewTransactions() {
+        int before = service.getTransactions("acc-001").size()
+                + service.getTransactions("acc-002").size();
+        service.transfer("acc-001", "acc-002", new BigDecimal("50.00"), "Save");
+        int after = service.getTransactions("acc-001").size()
+                + service.getTransactions("acc-002").size();
+        assertThat(after).isEqualTo(before + 2);
+    }
+
+    @Test
+    void transfer_rejectsSameAccount() {
+        assertThatThrownBy(() -> service.transfer("acc-001", "acc-001",
+                new BigDecimal("10.00"), "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void transfer_rejectsNonPositiveAmount() {
+        assertThatThrownBy(() -> service.transfer("acc-001", "acc-002",
+                new BigDecimal("0.00"), "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void transfer_rejectsInsufficientFunds() {
+        assertThatThrownBy(() -> service.transfer("acc-001", "acc-002",
+                new BigDecimal("9999999.00"), "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void transfer_rejectsUnknownAccount() {
+        assertThatThrownBy(() -> service.transfer("acc-001", "nope",
+                new BigDecimal("10.00"), "x"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

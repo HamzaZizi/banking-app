@@ -7,8 +7,14 @@ import org.apache.commons.text.StringSubstitutor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -17,7 +23,10 @@ import java.util.stream.Collectors;
 @Service
 public class BankingService {
 
-    private final List<Account> accounts = List.of(
+    // Accounts are mutable (transfers move money between them, nicknames can be
+    // renamed) so we use a copy-on-write list for lock-free concurrent reads on
+    // the hot path with safe, infrequent writes.
+    private final List<Account> accounts = new CopyOnWriteArrayList<>(List.of(
             new Account("acc-001", "Everyday Current Account", "CURRENT", "60-16-13", "****4471",
                     new BigDecimal("3245.67"), new BigDecimal("3745.67"), "GBP",
                     new BigDecimal("500.00"), "Select Current Account"),
@@ -27,7 +36,7 @@ public class BankingService {
             new Account("acc-003", "Business C&I Account", "BUSINESS", "60-16-13", "****2290",
                     new BigDecimal("58210.42"), new BigDecimal("55710.42"), "GBP",
                     new BigDecimal("10000.00"), "Business Banking Account")
-    );
+    ));
 
     private final List<Mortgage> mortgages = List.of(
             new Mortgage("mtg-001", "2 Year Fixed 4.29%", new BigDecimal("214500.00"),
@@ -38,9 +47,10 @@ public class BankingService {
                     new BigDecimal("742.10"), "2026-08-05", 216)
     );
 
-    // Recent transactions per account, most recent first.
-    private final List<Transaction> transactions = List.of(
-            // acc-001 Everyday Current Account
+    // Transactions across the last few months, most recent first. Mutable so a
+    // transfer can post new entries at runtime.
+    private final List<Transaction> transactions = new CopyOnWriteArrayList<>(List.of(
+            // ---- acc-001 Everyday Current Account -------------------------------
             new Transaction("txn-1001", "acc-001", "2026-07-16", "Contactless - Pret A Manger", "Eating out",
                     "DEBIT", new BigDecimal("-8.45"), new BigDecimal("3245.67")),
             new Transaction("txn-1002", "acc-001", "2026-07-15", "TfL Travel Charge", "Transport",
@@ -55,16 +65,42 @@ public class BankingService {
                     "DEBIT", new BigDecimal("-61.83"), new BigDecimal("749.91")),
             new Transaction("txn-1007", "acc-001", "2026-07-11", "Transfer to Instant Saver", "Transfers",
                     "DEBIT", new BigDecimal("-250.00"), new BigDecimal("811.74")),
+            new Transaction("txn-1008", "acc-001", "2026-07-09", "Costa Coffee", "Eating out",
+                    "DEBIT", new BigDecimal("-4.15"), new BigDecimal("1061.74")),
+            new Transaction("txn-1009", "acc-001", "2026-07-08", "Uber Trip", "Transport",
+                    "DEBIT", new BigDecimal("-18.40"), new BigDecimal("1065.89")),
+            new Transaction("txn-1010", "acc-001", "2026-07-05", "Netflix Subscription", "Entertainment",
+                    "DEBIT", new BigDecimal("-15.99"), new BigDecimal("1084.29")),
+            new Transaction("txn-1011", "acc-001", "2026-07-03", "Tesco Express", "Groceries",
+                    "DEBIT", new BigDecimal("-27.10"), new BigDecimal("1100.28")),
+            new Transaction("txn-1012", "acc-001", "2026-07-01", "Direct Debit - Oakwood Lettings", "Housing",
+                    "DEBIT", new BigDecimal("-1200.00"), new BigDecimal("1127.38")),
+            new Transaction("txn-1013", "acc-001", "2026-06-30", "ATM Withdrawal - Camden", "Cash",
+                    "DEBIT", new BigDecimal("-80.00"), new BigDecimal("2327.38")),
+            new Transaction("txn-1014", "acc-001", "2026-06-14", "Salary - Harness Ltd", "Income",
+                    "CREDIT", new BigDecimal("2650.00"), new BigDecimal("2407.38")),
+            new Transaction("txn-1015", "acc-001", "2026-06-11", "Vodafone UK", "Bills & utilities",
+                    "DEBIT", new BigDecimal("-32.00"), new BigDecimal("-242.62")),
+            new Transaction("txn-1016", "acc-001", "2026-06-06", "Deliveroo", "Eating out",
+                    "DEBIT", new BigDecimal("-24.80"), new BigDecimal("-210.62")),
+            new Transaction("txn-1017", "acc-001", "2026-05-30", "Spotify", "Entertainment",
+                    "DEBIT", new BigDecimal("-11.99"), new BigDecimal("-185.82")),
+            new Transaction("txn-1018", "acc-001", "2026-05-14", "Salary - Harness Ltd", "Income",
+                    "CREDIT", new BigDecimal("2650.00"), new BigDecimal("-173.83")),
 
-            // acc-002 Instant Saver
+            // ---- acc-002 Instant Saver -----------------------------------------
             new Transaction("txn-2001", "acc-002", "2026-07-11", "Transfer from Current Account", "Transfers",
                     "CREDIT", new BigDecimal("250.00"), new BigDecimal("12480.00")),
             new Transaction("txn-2002", "acc-002", "2026-07-01", "Interest payment", "Interest",
                     "CREDIT", new BigDecimal("18.31"), new BigDecimal("12230.00")),
             new Transaction("txn-2003", "acc-002", "2026-06-11", "Standing order - Monthly saving", "Transfers",
                     "CREDIT", new BigDecimal("200.00"), new BigDecimal("12211.69")),
+            new Transaction("txn-2004", "acc-002", "2026-06-01", "Interest payment", "Interest",
+                    "CREDIT", new BigDecimal("17.94"), new BigDecimal("12011.69")),
+            new Transaction("txn-2005", "acc-002", "2026-05-11", "Standing order - Monthly saving", "Transfers",
+                    "CREDIT", new BigDecimal("200.00"), new BigDecimal("11993.75")),
 
-            // acc-003 Business C&I Account
+            // ---- acc-003 Business C&I Account ----------------------------------
             new Transaction("txn-3001", "acc-003", "2026-07-16", "Faster Payment - Client Invoice 2041", "Income",
                     "CREDIT", new BigDecimal("4200.00"), new BigDecimal("58210.42")),
             new Transaction("txn-3002", "acc-003", "2026-07-15", "Card payment - AWS EMEA", "Software & cloud",
@@ -74,8 +110,21 @@ public class BankingService {
             new Transaction("txn-3004", "acc-003", "2026-07-12", "Faster Payment - Client Invoice 2038", "Income",
                     "CREDIT", new BigDecimal("6100.00"), new BigDecimal("65181.00")),
             new Transaction("txn-3005", "acc-003", "2026-07-10", "Direct Debit - HMRC VAT", "Tax",
-                    "DEBIT", new BigDecimal("-3420.00"), new BigDecimal("59081.00"))
-    );
+                    "DEBIT", new BigDecimal("-3420.00"), new BigDecimal("59081.00")),
+            new Transaction("txn-3006", "acc-003", "2026-07-04", "Card payment - Google Workspace", "Software & cloud",
+                    "DEBIT", new BigDecimal("-138.00"), new BigDecimal("62501.00")),
+            new Transaction("txn-3007", "acc-003", "2026-07-02", "Office rent - Regus", "Housing",
+                    "DEBIT", new BigDecimal("-2100.00"), new BigDecimal("62639.00")),
+            new Transaction("txn-3008", "acc-003", "2026-06-16", "Faster Payment - Client Invoice 2035", "Income",
+                    "CREDIT", new BigDecimal("5400.00"), new BigDecimal("64739.00")),
+            new Transaction("txn-3009", "acc-003", "2026-06-14", "Salary run - June", "Payroll",
+                    "DEBIT", new BigDecimal("-9850.00"), new BigDecimal("59339.00")),
+            new Transaction("txn-3010", "acc-003", "2026-06-05", "Card payment - LinkedIn Ads", "Marketing",
+                    "DEBIT", new BigDecimal("-640.00"), new BigDecimal("69189.00"))
+    ));
+
+    // Monotonic counter for runtime-posted transaction ids (transfers).
+    private final AtomicLong txnSeq = new AtomicLong(9000);
 
     public List<Account> getAccounts() {
         return accounts;
@@ -111,12 +160,181 @@ public class BankingService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Search / filter transactions across all accounts. Every argument is
+     * optional (pass null / blank to ignore). Returns matches most-recent-first.
+     */
+    public List<Transaction> searchTransactions(String query, String category, String type,
+                                                 String accountId, String from, String to) {
+        String q = query == null ? "" : query.trim().toLowerCase();
+        return transactions.stream()
+                .filter(t -> q.isEmpty()
+                        || t.getDescription().toLowerCase().contains(q)
+                        || t.getCategory().toLowerCase().contains(q))
+                .filter(t -> category == null || category.isBlank()
+                        || t.getCategory().equalsIgnoreCase(category))
+                .filter(t -> type == null || type.isBlank()
+                        || t.getType().equalsIgnoreCase(type))
+                .filter(t -> accountId == null || accountId.isBlank()
+                        || t.getAccountId().equals(accountId))
+                .filter(t -> from == null || from.isBlank() || t.getDate().compareTo(from) >= 0)
+                .filter(t -> to == null || to.isBlank() || t.getDate().compareTo(to) <= 0)
+                .sorted(Comparator.comparing(Transaction::getDate).reversed()
+                        .thenComparing(Transaction::getId, Comparator.reverseOrder()))
+                .collect(Collectors.toList());
+    }
+
+    /** Distinct transaction categories, alphabetically, for filter dropdowns. */
+    public List<String> getCategories() {
+        return transactions.stream()
+                .map(Transaction::getCategory)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Spending insights for one account: money in / out / net and a
+     * debit-spend breakdown by category (largest first). Null if unknown.
+     */
+    public Map<String, Object> getInsights(String accountId) {
+        if (getAccount(accountId) == null) {
+            return null;
+        }
+        List<Transaction> txns = transactions.stream()
+                .filter(t -> t.getAccountId().equals(accountId))
+                .collect(Collectors.toList());
+
+        BigDecimal moneyIn = txns.stream()
+                .filter(t -> t.getAmount().signum() > 0)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal moneyOut = txns.stream()
+                .filter(t -> t.getAmount().signum() < 0)
+                .map(t -> t.getAmount().abs())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, BigDecimal> byCategory = new TreeMap<>();
+        for (Transaction t : txns) {
+            if (t.getAmount().signum() < 0) {
+                byCategory.merge(t.getCategory(), t.getAmount().abs(), BigDecimal::add);
+            }
+        }
+        List<Map<String, Object>> categories = byCategory.entrySet().stream()
+                .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("category", e.getKey());
+                    m.put("amount", e.getValue());
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("accountId", accountId);
+        result.put("transactionCount", txns.size());
+        result.put("moneyIn", moneyIn);
+        result.put("moneyOut", moneyOut);
+        result.put("net", moneyIn.subtract(moneyOut));
+        result.put("categories", categories);
+        return result;
+    }
+
+    /**
+     * Monthly statement summaries for an account, most recent month first.
+     * Null if the account does not exist.
+     */
+    public List<Map<String, Object>> getStatements(String accountId) {
+        if (getAccount(accountId) == null) {
+            return null;
+        }
+        Map<String, List<Transaction>> byMonth = transactions.stream()
+                .filter(t -> t.getAccountId().equals(accountId))
+                .collect(Collectors.groupingBy(t -> t.getDate().substring(0, 7)));
+
+        return byMonth.entrySet().stream()
+                .sorted(Map.Entry.<String, List<Transaction>>comparingByKey().reversed())
+                .map(e -> {
+                    List<Transaction> txns = e.getValue();
+                    BigDecimal in = txns.stream().filter(t -> t.getAmount().signum() > 0)
+                            .map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal out = txns.stream().filter(t -> t.getAmount().signum() < 0)
+                            .map(t -> t.getAmount().abs()).reduce(BigDecimal.ZERO, BigDecimal::add);
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("period", e.getKey());
+                    m.put("transactionCount", txns.size());
+                    m.put("moneyIn", in);
+                    m.put("moneyOut", out);
+                    return m;
+                })
+                .collect(Collectors.toList());
+    }
+
     public List<Mortgage> getMortgages() {
         return mortgages;
     }
 
     public Mortgage getMortgage(String id) {
         return mortgages.stream().filter(m -> m.getId().equals(id)).findFirst().orElse(null);
+    }
+
+    /**
+     * Rename an account. Returns the updated account, or null if not found.
+     */
+    public Account updateNickname(String id, String nickname) {
+        Account account = getAccount(id);
+        if (account == null) {
+            return null;
+        }
+        account.setNickname(nickname);
+        return account;
+    }
+
+    /**
+     * Move money between two of the customer's own accounts. Because it is an
+     * internal transfer the total balance across accounts is unchanged. Throws
+     * IllegalArgumentException on any validation failure (controller -> 400).
+     */
+    public Map<String, Object> transfer(String fromId, String toId, BigDecimal amount, String reference) {
+        Account from = getAccount(fromId);
+        Account to = getAccount(toId);
+        if (from == null || to == null) {
+            throw new IllegalArgumentException("Unknown account");
+        }
+        if (fromId.equals(toId)) {
+            throw new IllegalArgumentException("Cannot transfer to the same account");
+        }
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than zero");
+        }
+        if (from.getAvailableBalance().compareTo(amount) < 0) {
+            throw new IllegalArgumentException("Insufficient available balance");
+        }
+
+        from.setBalance(from.getBalance().subtract(amount));
+        from.setAvailableBalance(from.getAvailableBalance().subtract(amount));
+        to.setBalance(to.getBalance().add(amount));
+        to.setAvailableBalance(to.getAvailableBalance().add(amount));
+
+        String today = java.time.LocalDate.now().toString();
+        String ref = (reference == null || reference.isBlank()) ? "Transfer" : reference.trim();
+        String debitId = "txn-" + txnSeq.incrementAndGet();
+        String creditId = "txn-" + txnSeq.incrementAndGet();
+        transactions.add(0, new Transaction(debitId, fromId, today,
+                "Transfer to " + to.getNickname(), "Transfers", "DEBIT", amount.negate(), from.getBalance()));
+        transactions.add(0, new Transaction(creditId, toId, today,
+                "Transfer from " + from.getNickname(), "Transfers", "CREDIT", amount, to.getBalance()));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "COMPLETED");
+        result.put("reference", ref);
+        result.put("amount", amount);
+        result.put("fromAccountId", fromId);
+        result.put("toAccountId", toId);
+        result.put("fromBalance", from.getBalance());
+        result.put("toBalance", to.getBalance());
+        result.put("date", today);
+        return result;
     }
 
     public Map<String, Object> getSummary() {

@@ -50,4 +50,37 @@ public class AccountController {
         }
         return ResponseEntity.ok(transactions);
     }
+
+    @GetMapping("/{id}/insights")
+    public ResponseEntity<Map<String, Object>> getInsights(@PathVariable String id) {
+        Map<String, Object> insights = bankingService.getInsights(id);
+        if (insights == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(insights);
+    }
+
+    @GetMapping("/{id}/statements")
+    public ResponseEntity<List<Map<String, Object>>> getStatements(@PathVariable String id) {
+        List<Map<String, Object>> statements = bankingService.getStatements(id);
+        if (statements == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(statements);
+    }
+
+    /** Rename an account. Body: { "nickname": "New name" }. */
+    @PutMapping("/{id}/nickname")
+    public ResponseEntity<Account> updateNickname(@PathVariable String id,
+                                                  @RequestBody Map<String, String> body) {
+        String nickname = body.get("nickname");
+        if (nickname == null || nickname.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Account account = bankingService.updateNickname(id, nickname.trim());
+        if (account == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(account);
+    }
 }

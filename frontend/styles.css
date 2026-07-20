@@ -525,6 +525,507 @@ body {
     padding: 20px;
 }
 
+/* ---- Notifications bell -------------------------------------------------- */
+.bell {
+    position: relative;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--white);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.bell:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.bell-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--negative);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---- Buttons ------------------------------------------------------------- */
+.btn-primary {
+    background: var(--brand-purple);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn-primary:hover {
+    background: var(--brand-purple-dark);
+}
+
+.btn-ghost {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand-purple);
+    cursor: pointer;
+}
+
+.btn-ghost:hover {
+    border-color: var(--brand-purple-light);
+}
+
+.btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* ---- Filter bar (transactions search) ------------------------------------ */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.filter-input,
+.filter-select {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--text-dark);
+    font-family: inherit;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    outline: none;
+    border-color: var(--brand-purple-light);
+}
+
+.filter-input[type="search"] {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* ---- Payments panel ------------------------------------------------------ */
+.payments-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.pay-card h3 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    color: var(--brand-purple-dark);
+}
+
+.transfer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.transfer-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.transfer-result {
+    font-size: 13px;
+    min-height: 18px;
+    color: var(--text-muted);
+}
+
+.transfer-result.ok {
+    color: var(--positive);
+    font-weight: 600;
+}
+
+.transfer-result.error {
+    color: var(--negative);
+    font-weight: 600;
+}
+
+.payee-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.payee-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.payee-row:last-child {
+    border-bottom: none;
+}
+
+.payee-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--brand-accent);
+    color: var(--brand-purple);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.payee-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.payee-main .name {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.payee-main .meta {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.payee-last {
+    text-align: right;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--brand-purple);
+}
+
+.panel-subhead {
+    margin: 24px 0 12px;
+}
+
+.panel-subhead h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--brand-purple-dark);
+}
+
+.scheduled-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--white);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+}
+
+.scheduled-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.scheduled-row:last-child {
+    border-bottom: none;
+}
+
+.sched-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--brand-accent);
+    color: var(--brand-purple);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.sched-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.sched-main .name {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.sched-main .meta {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.sched-amounts {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.sched-amounts .balance {
+    font-weight: 700;
+    color: var(--brand-purple);
+    font-size: 15px;
+}
+
+.sched-amounts .available {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.pill {
+    display: inline-block;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.pill-standing_order { background: #E8DEF0; color: var(--brand-purple); }
+.pill-direct_debit   { background: #DDEEF6; color: #14607A; }
+.pill-scheduled      { background: #FBE5D6; color: #9A5B12; }
+
+.status {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.status-active { background: #E4F3EA; color: var(--positive); }
+.status-paused { background: #F3E4E4; color: var(--negative); }
+
+/* ---- Cards --------------------------------------------------------------- */
+.bank-card {
+    background: linear-gradient(135deg, var(--brand-purple), var(--brand-purple-dark));
+    color: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(75, 30, 99, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 210px;
+}
+
+.bank-card.credit {
+    background: linear-gradient(135deg, #2A2140, #4B1E63);
+}
+
+.bank-card.frozen {
+    filter: grayscale(0.7);
+    opacity: 0.85;
+}
+
+.bank-card-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--brand-accent);
+}
+
+.bank-card-net {
+    font-weight: 700;
+}
+
+.bank-card-pan {
+    font-size: 19px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+
+.bank-card-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.bank-card-row .k {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--brand-accent);
+    opacity: 0.85;
+}
+
+.bank-card-row .v {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.bank-card-foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.bank-card-foot .contactless {
+    font-size: 11px;
+    color: var(--brand-accent);
+    flex: 1;
+}
+
+.bank-card-foot .freeze-btn {
+    padding: 6px 12px;
+}
+
+/* ---- Insights ------------------------------------------------------------ */
+.insight-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.insight-tiles .summary-value.credit { color: var(--positive); }
+.insight-tiles .summary-value.debit { color: var(--negative); }
+
+.insight-bars {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+}
+
+.insight-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+}
+
+.insight-cat {
+    width: 140px;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.insight-track {
+    flex: 1;
+    background: var(--bg);
+    border-radius: 6px;
+    height: 12px;
+    overflow: hidden;
+}
+
+.insight-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--brand-purple-light), var(--brand-purple));
+    border-radius: 6px;
+}
+
+.insight-amt {
+    width: 90px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--brand-purple);
+    flex-shrink: 0;
+}
+
+.inline-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* ---- Notifications inbox ------------------------------------------------- */
+.notif-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notif-row {
+    background: var(--white);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(75, 30, 99, 0.06);
+    border-left: 4px solid transparent;
+}
+
+.notif-row.unread {
+    border-left-color: var(--brand-purple);
+}
+
+.notif-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 8px;
+    height: fit-content;
+    flex-shrink: 0;
+}
+
+.tag-security { background: #F3E4E4; color: var(--negative); }
+.tag-payment  { background: #E4F3EA; color: var(--positive); }
+.tag-info     { background: #DDEEF6; color: #14607A; }
+.tag-offer    { background: #FBE5D6; color: #9A5B12; }
+
+.notif-title {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.notif-msg {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+.notif-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
 @media (max-width: 700px) {
     .summary-cards {
         grid-template-columns: 1fr;
@@ -535,5 +1036,12 @@ body {
     }
     .account-amounts .available {
         display: none;
+    }
+    .payments-grid,
+    .insight-tiles {
+        grid-template-columns: 1fr;
+    }
+    .tabs {
+        flex-wrap: wrap;
     }
 }
