@@ -44,8 +44,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-text</artifactId>
-            <!-- Bumped 1.9 -> 1.10.0 to remediate CVE-2022-42889 (Text4Shell). -->
-            <version>1.10.0</version>
+            <version>1.9</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
