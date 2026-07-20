@@ -14,33 +14,26 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * Self warm-up on boot — the fix for CV "cold-start" false positives.
+ * Self warm-up on boot — removes cold-start artifacts before the pod reports
+ * ready.
  *
  * WHY THIS EXISTS
  * A freshly-started JVM is slow for its first minute or two (class loading, JIT
- * compilation of the hot paths, cold Jackson/Spring-MVC caches). During a Prod
- * canary the Continuous Verification (Verify) step starts its analysis clock the
- * moment the pod reports READY, and it compares this cold canary against the
- * already-warm PRIMARY baseline. The cold opening spike in "Average Response
- * Time" deviates from the warm baseline and the ML fails the canary — even on a
- * perfectly healthy build. That is a false positive, not a regression.
+ * compilation of the hot paths, cold Jackson/Spring-MVC caches). If a new pod
+ * starts serving the moment it reports READY, that cold opening period shows an
+ * elevated "Average Response Time" that has nothing to do with the build's
+ * steady-state performance — it skews dashboards and any latency-based release
+ * gate against an otherwise healthy build.
  *
  * HOW IT FIXES IT
  * As an ApplicationRunner this executes AFTER the embedded web server is
  * listening but BEFORE ApplicationReadyEvent fires. Spring Boot only flips the
  * readiness probe (/actuator/health/readiness) to UP once this returns, so the
- * pod stays NotReady — and Harness keeps "waiting for pods ready" — until the
- * hot endpoints are warm. When CV finally starts measuring, the pod is already
- * warm, so there is no opening spike to flag. (Liveness is unaffected: it goes
- * CORRECT at ApplicationStartedEvent, before runners, so the pod is never
+ * pod stays NotReady — and Kubernetes keeps it out of the Service endpoints —
+ * until the hot endpoints are warm. By the time it takes live traffic the pod
+ * is already warm, so there is no opening spike. (Liveness is unaffected: it
+ * goes CORRECT at ApplicationStartedEvent, before runners, so the pod is never
  * restarted while warming.)
- *
- * WHY IT DOESN'T HIDE THE MEMORY LEAK (keeps the red-path demo intact)
- * Warm-up removes the one-off COLD-START artifact only. The per-request memory
- * leak on /api/summary manifests as a RISING trend across the 5-minute analysis
- * window regardless of warm-up, so on the leaky build CV still fails. We also
- * throttle /api/summary during warm-up (summary-every) so boot-time warm-up
- * doesn't pre-inflate the leak and turn a CV failure into a boot-time OOM.
  *
  * All calls hit localhost directly (not the k8s Service), so readiness state
  * does not gate them, and every error is swallowed — warm-up must NEVER fail
@@ -69,7 +62,7 @@ public class WarmupRunner implements ApplicationRunner {
     @Value("${cibanking.warmup.max-seconds:60}")
     private int maxSeconds;
 
-    /** Hit /api/summary only once every N rounds (it is the leaky endpoint). */
+    /** Hit /api/summary only once every N rounds (it is the heaviest read). */
     @Value("${cibanking.warmup.summary-every:4}")
     private int summaryEvery;
 
@@ -109,7 +102,8 @@ public class WarmupRunner implements ApplicationRunner {
             errors += hit(client, base + "/api/mortgages/" + mtg);
             requests += 6;
 
-            // Throttle the leaky endpoint so warm-up doesn't pre-inflate memory.
+            // Summary is the heaviest read (aggregates every account + mortgage),
+            // so warm it less often to keep total warm-up within the time cap.
             if (summaryEvery > 0 && i % summaryEvery == 0) {
                 errors += hit(client, base + "/api/summary");
                 requests += 1;
