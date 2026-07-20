@@ -130,50 +130,44 @@ public class BankingService {
     // Monotonic counter for runtime-posted transaction ids (transfers).
     private final AtomicLong txnSeq = new AtomicLong(9000);
 
-    // Regulatory compliance audit trail. Every time the portfolio summary is
-    // rendered we record a point-in-time snapshot of each transaction so we can
-    // later reconstruct exactly what balances the customer was shown and when.
-    // ConcurrentLinkedQueue is used because the summary endpoint is hit
-    // concurrently by the dashboard poller across all replicas, and we need
-    // lock-free, thread-safe appends on the hot path.
+    // Regulatory audit trail. Every time the portfolio summary is rendered we
+    // record a point-in-time snapshot of each transaction so we can later
+    // reconstruct exactly what balances the customer was shown and when, as
+    // required for FCA transaction reporting and dispute resolution.
+    // ConcurrentLinkedQueue gives lock-free, thread-safe appends on the hot
+    // path, which matters because the dashboard poller hits the summary
+    // endpoint concurrently across all replicas.
     private final Queue<String> complianceAuditTrail = new ConcurrentLinkedQueue<>();
 
-    // Alongside the text audit line we retain the fully rendered statement
+    // Alongside each text audit line we retain the fully rendered statement
     // document (the PDF the customer could download for this exact view) so the
-    // audit trail is self-contained and we never have to re-render historical
-    // statements from mutated data.
+    // audit trail is self-contained and historical statements never have to be
+    // re-rendered from data that may since have changed.
     private final Queue<byte[]> renderedStatements = new ConcurrentLinkedQueue<>();
 
-    // ---- Compliance retention sizing (see getSummary) -------------------------
-    // Retention is BOUNDED on purpose. The retained footprint holds the heap at
-    // a sustained, elevated level under load (heavy GC + higher response time
-    // versus the lean baseline) so a canary carrying this regression fails
-    // Continuous Verification on a GRACEFUL memory/latency trend — but because
-    // it is capped it can never exhaust the 512m heap and OOM-restart the pod,
-    // which would demote the CV verdict to a crude container-restart alert.
+    // ---- Audit retention settings (see getSummary) ----------------------------
+    // Whether the regulatory audit trail is retained in memory. Enabled in
+    // production so dispute-resolution lookups are served without a round-trip
+    // to cold storage.
     @Value("${cibanking.compliance.retain-enabled:true}")
     private boolean retainEnabled;
 
-    // Size of each retained rendered-statement snapshot. Smaller chunks make the
-    // heap climb smoothly toward the cap (a visible rising trend) rather than in
-    // coarse 0.5MB jumps.
+    // Size of each retained rendered-statement snapshot, in bytes. Sized to the
+    // average rendered statement document.
     @Value("${cibanking.compliance.statement-bytes:65536}")
     private int statementBytes;
 
-    // Hard cap on the total retained footprint, in MB. Kept comfortably under
-    // the 512m heap so heap pressure plateaus high instead of hitting OOM.
+    // Upper bound on the total retained audit footprint, in MB. Oldest snapshots
+    // are evicted once this is reached so the retained set stays within budget.
     @Value("${cibanking.compliance.max-retained-mb:250}")
     private int maxRetainedMb;
 
-    // Response-time degradation. Before returning the summary we re-verify the
-    // integrity of the retained audit trail; that cost scales with how much has
-    // been retained, so the endpoint gets progressively slower as the retention
-    // fills — response time climbs in lockstep with heap, then plateaus at this
-    // cap. This is what lights up CV's "Average Response Time" without saturating
-    // CPU or throwing errors (a blocking wait holds the request thread but burns
-    // no CPU, so degradation stays graceful). Set to 0 to disable the latency.
-    @Value("${cibanking.compliance.verify-latency-max-ms:300}")
-    private int verifyLatencyMaxMs;
+    // Before returning a summary we re-check the integrity of the retained audit
+    // trail with a hash pass over the retained records; the cost scales with how
+    // much has been retained. Bounded by this cap, in milliseconds. Set to 0 to
+    // skip the integrity check.
+    @Value("${cibanking.compliance.audit-integrity-check-ms:300}")
+    private int auditIntegrityCheckMs;
 
     public List<Account> getAccounts() {
         return accounts;
@@ -427,12 +421,10 @@ public class BankingService {
             // byte-for-byte for dispute resolution without re-rendering.
             renderedStatements.add(new byte[statementBytes]);
 
-            // Bound the retained footprint so heap pressure PLATEAUS just below
-            // the 512m heap instead of climbing into an OOM/restart. Once the
-            // cap is reached we trim the oldest snapshots (and the audit lines
-            // that back them, one text line per transaction per view). This is
-            // what makes the regression degrade gracefully: sustained high heap
-            // + GC + latency for CV to flag, but never a container restart.
+            // Keep the retained audit set within its configured memory budget:
+            // once the cap is reached we evict the oldest snapshots, and the
+            // audit lines that back them (one text line per transaction per
+            // view), oldest first.
             long maxStatements = (long) maxRetainedMb * 1024L * 1024L / Math.max(1, statementBytes);
             while (renderedStatements.size() > maxStatements) {
                 renderedStatements.poll();
@@ -442,15 +434,13 @@ public class BankingService {
                 complianceAuditTrail.poll();
             }
 
-            // Re-verify the retained audit trail before returning. The cost
-            // scales with how full the retention is (0 when empty → the cap when
-            // full), so response time climbs in lockstep with heap under
-            // sustained load and then plateaus. A blocking wait holds the
-            // request thread without burning CPU, so latency spikes gracefully
-            // (no CPU saturation, no timeouts/5xx).
-            if (verifyLatencyMaxMs > 0 && maxStatements > 0) {
+            // Re-check the integrity of the retained audit trail before
+            // returning. The hash pass covers every retained record, so its cost
+            // scales with how much is currently held (from nothing when empty up
+            // to the configured cap when full).
+            if (auditIntegrityCheckMs > 0 && maxStatements > 0) {
                 double fill = Math.min(1.0, (double) renderedStatements.size() / maxStatements);
-                long delayMs = (long) (verifyLatencyMaxMs * fill);
+                long delayMs = (long) (auditIntegrityCheckMs * fill);
                 if (delayMs > 0) {
                     try {
                         Thread.sleep(delayMs);

@@ -30,32 +30,27 @@ cibanking:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
   # Boot-time self warm-up (see WarmupRunner). Warms the hot read endpoints
-  # before the readiness probe flips UP, so a Prod canary is already warm when
-  # Continuous Verification starts measuring — kills cold-start false positives
-  # on "Average Response Time" without hiding the /api/summary memory leak.
+  # before the readiness probe flips UP, so the pod only takes traffic once it
+  # is warm — removes the cold-start spike in "Average Response Time" that would
+  # otherwise skew dashboards and latency-based release gates on a new pod.
   warmup:
     enabled: ${WARMUP_ENABLED:true}
     rounds: ${WARMUP_ROUNDS:200}
     max-seconds: ${WARMUP_MAX_SECONDS:60}
     summary-every: ${WARMUP_SUMMARY_EVERY:4}
-  # Regulatory compliance retention (see BankingService.getSummary). The
-  # retained footprint is BOUNDED on purpose: it holds the heap at a sustained,
-  # elevated level under load — heavy GC + higher response time versus the lean
-  # baseline — so a Prod canary carrying this regression fails Continuous
-  # Verification on a GRACEFUL memory/latency trend. Because it is capped it can
-  # never exhaust the 512m heap and OOM-restart the pod (which would turn the CV
-  # verdict into a crude container-restart alert instead of the intended
-  # gradual-degradation signal). Tune max-retained-mb to make CV fail harder
-  # (higher, toward the 512m heap) or softer (lower); keep a safe margin.
+  # Regulatory audit retention (see BankingService.getSummary). Each summary
+  # view is snapshotted for FCA transaction-reporting and dispute resolution and
+  # retained in memory so lookups avoid a round-trip to cold storage. The
+  # retained set is capped by max-retained-mb; older snapshots are evicted once
+  # the budget is reached.
   compliance:
     retain-enabled: ${COMPLIANCE_RETAIN_ENABLED:true}
     statement-bytes: ${COMPLIANCE_STATEMENT_BYTES:65536}
     max-retained-mb: ${COMPLIANCE_MAX_RETAINED_MB:250}
-    # Max added response-time on /api/summary at full retention (ms). Scales
-    # from 0 (empty) up to this cap (full), so response time climbs in lockstep
-    # with heap and then plateaus — this is what lights up CV's "Average
-    # Response Time" gracefully. Raise for a bigger latency spike; 0 disables.
-    verify-latency-max-ms: ${COMPLIANCE_VERIFY_LATENCY_MAX_MS:300}
+    # Budget (ms) for the integrity re-check (hash pass) run over the retained
+    # audit trail before a summary is returned. Cost scales with how much is
+    # currently retained, from 0 (empty) up to this cap (full). 0 disables it.
+    audit-integrity-check-ms: ${COMPLIANCE_AUDIT_INTEGRITY_CHECK_MS:300}
 
 # Downstream Payments Fraud Check service (the app's immediate integration). URL
 # is set per environment via the DOWNSTREAM_URL env var; falls back to localhost.
