@@ -51,6 +51,11 @@ cibanking:
     retain-enabled: ${COMPLIANCE_RETAIN_ENABLED:true}
     statement-bytes: ${COMPLIANCE_STATEMENT_BYTES:65536}
     max-retained-mb: ${COMPLIANCE_MAX_RETAINED_MB:250}
+    # Max added response-time on /api/summary at full retention (ms). Scales
+    # from 0 (empty) up to this cap (full), so response time climbs in lockstep
+    # with heap and then plateaus — this is what lights up CV's "Average
+    # Response Time" gracefully. Raise for a bigger latency spike; 0 disables.
+    verify-latency-max-ms: ${COMPLIANCE_VERIFY_LATENCY_MAX_MS:300}
 
 # Downstream Payments Fraud Check service (the app's immediate integration). URL
 # is set per environment via the DOWNSTREAM_URL env var; falls back to localhost.

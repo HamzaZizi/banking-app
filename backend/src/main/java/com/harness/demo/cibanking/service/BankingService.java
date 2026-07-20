@@ -116,6 +116,16 @@ public class BankingService {
     @Value("${cibanking.compliance.max-retained-mb:250}")
     private int maxRetainedMb;
 
+    // Response-time degradation. Before returning the summary we re-verify the
+    // integrity of the retained audit trail; that cost scales with how much has
+    // been retained, so the endpoint gets progressively slower as the retention
+    // fills — response time climbs in lockstep with heap, then plateaus at this
+    // cap. This is what lights up CV's "Average Response Time" without saturating
+    // CPU or throwing errors (a blocking wait holds the request thread but burns
+    // no CPU, so degradation stays graceful). Set to 0 to disable the latency.
+    @Value("${cibanking.compliance.verify-latency-max-ms:300}")
+    private int verifyLatencyMaxMs;
+
     public List<Account> getAccounts() {
         return accounts;
     }
@@ -212,6 +222,24 @@ public class BankingService {
             long maxAuditLines = maxStatements * Math.max(1, transactions.size());
             while (complianceAuditTrail.size() > maxAuditLines) {
                 complianceAuditTrail.poll();
+            }
+
+            // Re-verify the retained audit trail before returning. The cost
+            // scales with how full the retention is (0 when empty → the cap when
+            // full), so response time climbs in lockstep with heap under
+            // sustained load and then plateaus. A blocking wait holds the
+            // request thread without burning CPU, so latency spikes gracefully
+            // (no CPU saturation, no timeouts/5xx).
+            if (verifyLatencyMaxMs > 0 && maxStatements > 0) {
+                double fill = Math.min(1.0, (double) renderedStatements.size() / maxStatements);
+                long delayMs = (long) (verifyLatencyMaxMs * fill);
+                if (delayMs > 0) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
             }
         }
 
