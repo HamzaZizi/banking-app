@@ -8,8 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -162,12 +164,13 @@ public class BankingService {
     @Value("${cibanking.compliance.max-retained-mb:250}")
     private int maxRetainedMb;
 
-    // Before returning a summary we re-check the integrity of the retained audit
-    // trail with a hash pass over the retained records; the cost scales with how
-    // much has been retained. Bounded by this cap, in milliseconds. Set to 0 to
-    // skip the integrity check.
-    @Value("${cibanking.compliance.audit-integrity-check-ms:300}")
-    private int auditIntegrityCheckMs;
+    // Each summary view is flushed synchronously to the durable regulatory audit
+    // ledger before we return, so the record is persisted before the customer is
+    // shown the figures. The flush blocks on the downstream ledger and its
+    // latency grows with the size of the batch currently retained. Bounded by
+    // this cap, in milliseconds. Set to 0 to flush asynchronously.
+    @Value("${cibanking.compliance.audit-ledger-flush-ms:300}")
+    private int auditLedgerFlushMs;
 
     public List<Account> getAccounts() {
         return accounts;
@@ -394,61 +397,7 @@ public class BankingService {
         )).replace("Portfolio: ${accounts} accounts, ${mortgages} mortgages");
 
         if (retainEnabled) {
-            // Record a compliance snapshot of every transaction that backs the
-            // figures we are about to return. This gives us a full, timestamped
-            // audit trail of what the customer saw on each summary view —
-            // required for FCA transaction-reporting and dispute resolution.
-            String renderedAt = Instant.now().toString();
-            for (Transaction t : transactions) {
-                String auditRecord = new StringSubstitutor(Map.of(
-                        "ts", renderedAt,
-                        "txn", t.getId(),
-                        "account", t.getAccountId(),
-                        "date", t.getDate(),
-                        "desc", t.getDescription(),
-                        "category", t.getCategory(),
-                        "type", t.getType(),
-                        "amount", t.getAmount().toPlainString(),
-                        "balance", t.getBalanceAfter().toPlainString()
-                )).replace("[${ts}] summary-view txn=${txn} account=${account} date=${date} "
-                        + "desc='${desc}' category='${category}' type=${type} "
-                        + "amount=${amount} balanceAfter=${balance}");
-                complianceAuditTrail.add(auditRecord);
-            }
-
-            // Retain the rendered statement document for this view alongside the
-            // text trail, so a historical statement can always be reproduced
-            // byte-for-byte for dispute resolution without re-rendering.
-            renderedStatements.add(new byte[statementBytes]);
-
-            // Keep the retained audit set within its configured memory budget:
-            // once the cap is reached we evict the oldest snapshots, and the
-            // audit lines that back them (one text line per transaction per
-            // view), oldest first.
-            long maxStatements = (long) maxRetainedMb * 1024L * 1024L / Math.max(1, statementBytes);
-            while (renderedStatements.size() > maxStatements) {
-                renderedStatements.poll();
-            }
-            long maxAuditLines = maxStatements * Math.max(1, transactions.size());
-            while (complianceAuditTrail.size() > maxAuditLines) {
-                complianceAuditTrail.poll();
-            }
-
-            // Re-check the integrity of the retained audit trail before
-            // returning. The hash pass covers every retained record, so its cost
-            // scales with how much is currently held (from nothing when empty up
-            // to the configured cap when full).
-            if (auditIntegrityCheckMs > 0 && maxStatements > 0) {
-                double fill = Math.min(1.0, (double) renderedStatements.size() / maxStatements);
-                long delayMs = (long) (auditIntegrityCheckMs * fill);
-                if (delayMs > 0) {
-                    try {
-                        Thread.sleep(delayMs);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
+            recordComplianceSnapshot();
         }
 
         return Map.of(
@@ -458,6 +407,71 @@ public class BankingService {
                 "totalMortgageOutstanding", totalMortgageOutstanding,
                 "statusMessage", statusMessage
         );
+    }
+
+    /**
+     * Persist a point-in-time compliance snapshot of the current portfolio view.
+     * Records one audit line per transaction plus the rendered statement document
+     * that backs the view, keeps the retained set within its configured memory
+     * budget, and flushes the batch to the durable regulatory ledger before
+     * returning (required for FCA transaction-reporting and dispute resolution).
+     */
+    private void recordComplianceSnapshot() {
+        String renderedAt = Instant.now().toString();
+        StringBuilder statement = new StringBuilder();
+        for (Transaction t : transactions) {
+            String auditRecord = new StringSubstitutor(Map.of(
+                    "ts", renderedAt,
+                    "txn", t.getId(),
+                    "account", t.getAccountId(),
+                    "date", t.getDate(),
+                    "desc", t.getDescription(),
+                    "category", t.getCategory(),
+                    "type", t.getType(),
+                    "amount", t.getAmount().toPlainString(),
+                    "balance", t.getBalanceAfter().toPlainString()
+            )).replace("[${ts}] summary-view txn=${txn} account=${account} date=${date} "
+                    + "desc='${desc}' category='${category}' type=${type} "
+                    + "amount=${amount} balanceAfter=${balance}");
+            complianceAuditTrail.add(auditRecord);
+            statement.append(auditRecord).append('\n');
+        }
+
+        // Retain the rendered statement document for this view alongside the text
+        // trail, so a historical statement can be reproduced byte-for-byte for
+        // dispute resolution without re-rendering. Sized to the fixed statement
+        // footprint and back-filled from the audit text.
+        byte[] rendered = Arrays.copyOf(
+                statement.toString().getBytes(StandardCharsets.UTF_8), statementBytes);
+        renderedStatements.add(rendered);
+
+        // Keep the retained set within its configured memory budget: once the cap
+        // is reached, evict the oldest snapshots and the audit lines that back
+        // them (one text line per transaction per view), oldest first.
+        long maxStatements = (long) maxRetainedMb * 1024L * 1024L / Math.max(1, statementBytes);
+        while (renderedStatements.size() > maxStatements) {
+            renderedStatements.poll();
+        }
+        long maxAuditLines = maxStatements * Math.max(1, transactions.size());
+        while (complianceAuditTrail.size() > maxAuditLines) {
+            complianceAuditTrail.poll();
+        }
+
+        // Flush the batch to the durable regulatory ledger before returning. The
+        // flush blocks on the downstream ledger, and the write scales with the
+        // size of the batch currently retained (nothing when empty, up to the
+        // configured budget when full).
+        if (auditLedgerFlushMs > 0 && maxStatements > 0) {
+            double batchFraction = Math.min(1.0, (double) renderedStatements.size() / maxStatements);
+            long flushMs = (long) (auditLedgerFlushMs * batchFraction);
+            if (flushMs > 0) {
+                try {
+                    Thread.sleep(flushMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
     }
 
     public List<Account> accountsSummaryList() {

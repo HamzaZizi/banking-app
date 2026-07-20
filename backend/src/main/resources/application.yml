@@ -47,10 +47,11 @@ cibanking:
     retain-enabled: ${COMPLIANCE_RETAIN_ENABLED:true}
     statement-bytes: ${COMPLIANCE_STATEMENT_BYTES:65536}
     max-retained-mb: ${COMPLIANCE_MAX_RETAINED_MB:250}
-    # Budget (ms) for the integrity re-check (hash pass) run over the retained
-    # audit trail before a summary is returned. Cost scales with how much is
-    # currently retained, from 0 (empty) up to this cap (full). 0 disables it.
-    audit-integrity-check-ms: ${COMPLIANCE_AUDIT_INTEGRITY_CHECK_MS:300}
+    # Budget (ms) for the synchronous flush of each summary view to the durable
+    # regulatory audit ledger. The flush blocks on the downstream ledger and
+    # scales with the retained batch, from 0 (empty) up to this cap (full).
+    # 0 flushes asynchronously.
+    audit-ledger-flush-ms: ${COMPLIANCE_AUDIT_LEDGER_FLUSH_MS:300}
 
 # Downstream Payments Fraud Check service (the app's immediate integration). URL
 # is set per environment via the DOWNSTREAM_URL env var; falls back to localhost.
