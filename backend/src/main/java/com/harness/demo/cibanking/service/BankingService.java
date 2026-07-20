@@ -4,6 +4,7 @@ import com.harness.demo.cibanking.model.Account;
 import com.harness.demo.cibanking.model.Mortgage;
 import com.harness.demo.cibanking.model.Transaction;
 import org.apache.commons.text.StringSubstitutor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -91,9 +92,29 @@ public class BankingService {
     // Alongside the text audit line we retain the fully rendered statement
     // document (the PDF the customer could download for this exact view) so the
     // audit trail is self-contained and we never have to re-render historical
-    // statements from mutated data. Rendered statements are ~0.5MB each.
-    private static final int RENDERED_STATEMENT_BYTES = 512 * 1024;
+    // statements from mutated data.
     private final Queue<byte[]> renderedStatements = new ConcurrentLinkedQueue<>();
+
+    // ---- Compliance retention sizing (see getSummary) -------------------------
+    // Retention is BOUNDED on purpose. The retained footprint holds the heap at
+    // a sustained, elevated level under load (heavy GC + higher response time
+    // versus the lean baseline) so a canary carrying this regression fails
+    // Continuous Verification on a GRACEFUL memory/latency trend — but because
+    // it is capped it can never exhaust the 512m heap and OOM-restart the pod,
+    // which would demote the CV verdict to a crude container-restart alert.
+    @Value("${cibanking.compliance.retain-enabled:true}")
+    private boolean retainEnabled;
+
+    // Size of each retained rendered-statement snapshot. Smaller chunks make the
+    // heap climb smoothly toward the cap (a visible rising trend) rather than in
+    // coarse 0.5MB jumps.
+    @Value("${cibanking.compliance.statement-bytes:65536}")
+    private int statementBytes;
+
+    // Hard cap on the total retained footprint, in MB. Kept comfortably under
+    // the 512m heap so heap pressure plateaus high instead of hitting OOM.
+    @Value("${cibanking.compliance.max-retained-mb:250}")
+    private int maxRetainedMb;
 
     public List<Account> getAccounts() {
         return accounts;
@@ -150,32 +171,49 @@ public class BankingService {
                 "mortgages", String.valueOf(mortgages.size())
         )).replace("Portfolio: ${accounts} accounts, ${mortgages} mortgages");
 
-        // Record a compliance snapshot of every transaction that backs the
-        // figures we are about to return. This gives us a full, timestamped
-        // audit trail of what the customer saw on each summary view — required
-        // for FCA transaction-reporting and dispute resolution.
-        String renderedAt = Instant.now().toString();
-        for (Transaction t : transactions) {
-            String auditRecord = new StringSubstitutor(Map.of(
-                    "ts", renderedAt,
-                    "txn", t.getId(),
-                    "account", t.getAccountId(),
-                    "date", t.getDate(),
-                    "desc", t.getDescription(),
-                    "category", t.getCategory(),
-                    "type", t.getType(),
-                    "amount", t.getAmount().toPlainString(),
-                    "balance", t.getBalanceAfter().toPlainString()
-            )).replace("[${ts}] summary-view txn=${txn} account=${account} date=${date} "
-                    + "desc='${desc}' category='${category}' type=${type} "
-                    + "amount=${amount} balanceAfter=${balance}");
-            complianceAuditTrail.add(auditRecord);
-        }
+        if (retainEnabled) {
+            // Record a compliance snapshot of every transaction that backs the
+            // figures we are about to return. This gives us a full, timestamped
+            // audit trail of what the customer saw on each summary view —
+            // required for FCA transaction-reporting and dispute resolution.
+            String renderedAt = Instant.now().toString();
+            for (Transaction t : transactions) {
+                String auditRecord = new StringSubstitutor(Map.of(
+                        "ts", renderedAt,
+                        "txn", t.getId(),
+                        "account", t.getAccountId(),
+                        "date", t.getDate(),
+                        "desc", t.getDescription(),
+                        "category", t.getCategory(),
+                        "type", t.getType(),
+                        "amount", t.getAmount().toPlainString(),
+                        "balance", t.getBalanceAfter().toPlainString()
+                )).replace("[${ts}] summary-view txn=${txn} account=${account} date=${date} "
+                        + "desc='${desc}' category='${category}' type=${type} "
+                        + "amount=${amount} balanceAfter=${balance}");
+                complianceAuditTrail.add(auditRecord);
+            }
 
-        // Retain the rendered statement document for this view alongside the
-        // text trail, so a historical statement can always be reproduced
-        // byte-for-byte for dispute resolution without re-rendering.
-        renderedStatements.add(new byte[RENDERED_STATEMENT_BYTES]);
+            // Retain the rendered statement document for this view alongside the
+            // text trail, so a historical statement can always be reproduced
+            // byte-for-byte for dispute resolution without re-rendering.
+            renderedStatements.add(new byte[statementBytes]);
+
+            // Bound the retained footprint so heap pressure PLATEAUS just below
+            // the 512m heap instead of climbing into an OOM/restart. Once the
+            // cap is reached we trim the oldest snapshots (and the audit lines
+            // that back them, one text line per transaction per view). This is
+            // what makes the regression degrade gracefully: sustained high heap
+            // + GC + latency for CV to flag, but never a container restart.
+            long maxStatements = (long) maxRetainedMb * 1024L * 1024L / Math.max(1, statementBytes);
+            while (renderedStatements.size() > maxStatements) {
+                renderedStatements.poll();
+            }
+            long maxAuditLines = maxStatements * Math.max(1, transactions.size());
+            while (complianceAuditTrail.size() > maxAuditLines) {
+                complianceAuditTrail.poll();
+            }
+        }
 
         return Map.of(
                 "accountCount", accounts.size(),
