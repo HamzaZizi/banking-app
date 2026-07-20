@@ -30,9 +30,9 @@ cibanking:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
   # Boot-time self warm-up (see WarmupRunner). Warms the hot read endpoints
-  # before the readiness probe flips UP, so a Prod canary is already warm when
-  # Continuous Verification starts measuring — kills cold-start false positives
-  # on "Average Response Time" without hiding the /api/summary memory leak.
+  # before the readiness probe flips UP, so the pod only takes traffic once it
+  # is warm — removes the cold-start spike in "Average Response Time" that would
+  # otherwise skew dashboards and latency-based release gates on a new pod.
   warmup:
     enabled: ${WARMUP_ENABLED:true}
     rounds: ${WARMUP_ROUNDS:200}
