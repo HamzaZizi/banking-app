@@ -29,6 +29,15 @@ management:
 cibanking:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  # Boot-time self warm-up (see WarmupRunner). Warms the hot read endpoints
+  # before the readiness probe flips UP, so a Prod canary is already warm when
+  # Continuous Verification starts measuring — kills cold-start false positives
+  # on "Average Response Time" without hiding the /api/summary memory leak.
+  warmup:
+    enabled: ${WARMUP_ENABLED:true}
+    rounds: ${WARMUP_ROUNDS:200}
+    max-seconds: ${WARMUP_MAX_SECONDS:60}
+    summary-every: ${WARMUP_SUMMARY_EVERY:4}
 
 # Downstream Payments Fraud Check service (the app's immediate integration). URL
 # is set per environment via the DOWNSTREAM_URL env var; falls back to localhost.
