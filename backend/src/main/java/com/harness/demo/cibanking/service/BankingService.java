@@ -4,21 +4,15 @@ import com.harness.demo.cibanking.model.Account;
 import com.harness.demo.cibanking.model.Mortgage;
 import com.harness.demo.cibanking.model.Transaction;
 import org.apache.commons.text.StringSubstitutor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -131,46 +125,6 @@ public class BankingService {
 
     // Monotonic counter for runtime-posted transaction ids (transfers).
     private final AtomicLong txnSeq = new AtomicLong(9000);
-
-    // Regulatory audit trail. Every time the portfolio summary is rendered we
-    // record a point-in-time snapshot of each transaction so we can later
-    // reconstruct exactly what balances the customer was shown and when, as
-    // required for FCA transaction reporting and dispute resolution.
-    // ConcurrentLinkedQueue gives lock-free, thread-safe appends on the hot
-    // path, which matters because the dashboard poller hits the summary
-    // endpoint concurrently across all replicas.
-    private final Queue<String> complianceAuditTrail = new ConcurrentLinkedQueue<>();
-
-    // Alongside each text audit line we retain the fully rendered statement
-    // document (the PDF the customer could download for this exact view) so the
-    // audit trail is self-contained and historical statements never have to be
-    // re-rendered from data that may since have changed.
-    private final Queue<byte[]> renderedStatements = new ConcurrentLinkedQueue<>();
-
-    // ---- Audit retention settings (see getSummary) ----------------------------
-    // Whether the regulatory audit trail is retained in memory. Enabled in
-    // production so dispute-resolution lookups are served without a round-trip
-    // to cold storage.
-    @Value("${cibanking.compliance.retain-enabled:true}")
-    private boolean retainEnabled;
-
-    // Size of each retained rendered-statement snapshot, in bytes. Sized to the
-    // average rendered statement document.
-    @Value("${cibanking.compliance.statement-bytes:65536}")
-    private int statementBytes;
-
-    // Upper bound on the total retained audit footprint, in MB. Oldest snapshots
-    // are evicted once this is reached so the retained set stays within budget.
-    @Value("${cibanking.compliance.max-retained-mb:250}")
-    private int maxRetainedMb;
-
-    // Each summary view is flushed synchronously to the durable regulatory audit
-    // ledger before we return, so the record is persisted before the customer is
-    // shown the figures. The flush blocks on the downstream ledger and its
-    // latency grows with the size of the batch currently retained. Bounded by
-    // this cap, in milliseconds. Set to 0 to flush asynchronously.
-    @Value("${cibanking.compliance.audit-ledger-flush-ms:300}")
-    private int auditLedgerFlushMs;
 
     public List<Account> getAccounts() {
         return accounts;
@@ -396,10 +350,6 @@ public class BankingService {
                 "mortgages", String.valueOf(mortgages.size())
         )).replace("Portfolio: ${accounts} accounts, ${mortgages} mortgages");
 
-        if (retainEnabled) {
-            recordComplianceSnapshot();
-        }
-
         return Map.of(
                 "accountCount", accounts.size(),
                 "totalBalance", totalBalance,
@@ -407,71 +357,6 @@ public class BankingService {
                 "totalMortgageOutstanding", totalMortgageOutstanding,
                 "statusMessage", statusMessage
         );
-    }
-
-    /**
-     * Persist a point-in-time compliance snapshot of the current portfolio view.
-     * Records one audit line per transaction plus the rendered statement document
-     * that backs the view, keeps the retained set within its configured memory
-     * budget, and flushes the batch to the durable regulatory ledger before
-     * returning (required for FCA transaction-reporting and dispute resolution).
-     */
-    private void recordComplianceSnapshot() {
-        String renderedAt = Instant.now().toString();
-        StringBuilder statement = new StringBuilder();
-        for (Transaction t : transactions) {
-            String auditRecord = new StringSubstitutor(Map.of(
-                    "ts", renderedAt,
-                    "txn", t.getId(),
-                    "account", t.getAccountId(),
-                    "date", t.getDate(),
-                    "desc", t.getDescription(),
-                    "category", t.getCategory(),
-                    "type", t.getType(),
-                    "amount", t.getAmount().toPlainString(),
-                    "balance", t.getBalanceAfter().toPlainString()
-            )).replace("[${ts}] summary-view txn=${txn} account=${account} date=${date} "
-                    + "desc='${desc}' category='${category}' type=${type} "
-                    + "amount=${amount} balanceAfter=${balance}");
-            complianceAuditTrail.add(auditRecord);
-            statement.append(auditRecord).append('\n');
-        }
-
-        // Retain the rendered statement document for this view alongside the text
-        // trail, so a historical statement can be reproduced byte-for-byte for
-        // dispute resolution without re-rendering. Sized to the fixed statement
-        // footprint and back-filled from the audit text.
-        byte[] rendered = Arrays.copyOf(
-                statement.toString().getBytes(StandardCharsets.UTF_8), statementBytes);
-        renderedStatements.add(rendered);
-
-        // Keep the retained set within its configured memory budget: once the cap
-        // is reached, evict the oldest snapshots and the audit lines that back
-        // them (one text line per transaction per view), oldest first.
-        long maxStatements = (long) maxRetainedMb * 1024L * 1024L / Math.max(1, statementBytes);
-        while (renderedStatements.size() > maxStatements) {
-            renderedStatements.poll();
-        }
-        long maxAuditLines = maxStatements * Math.max(1, transactions.size());
-        while (complianceAuditTrail.size() > maxAuditLines) {
-            complianceAuditTrail.poll();
-        }
-
-        // Flush the batch to the durable regulatory ledger before returning. The
-        // flush blocks on the downstream ledger, and the write scales with the
-        // size of the batch currently retained (nothing when empty, up to the
-        // configured budget when full).
-        if (auditLedgerFlushMs > 0 && maxStatements > 0) {
-            double batchFraction = Math.min(1.0, (double) renderedStatements.size() / maxStatements);
-            long flushMs = (long) (auditLedgerFlushMs * batchFraction);
-            if (flushMs > 0) {
-                try {
-                    Thread.sleep(flushMs);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
     }
 
     public List<Account> accountsSummaryList() {
