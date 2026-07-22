@@ -1,7 +1,7 @@
 {
   "name": "ci-banking-frontend",
   "version": "1.0.0",
-  "description": "C&I Banking demo frontend (static HTML/CSS/JS)",
+  "description": "Vodafone Money demo frontend (static HTML/CSS/JS)",
   "private": true,
   "scripts": {
     "test": "jest"

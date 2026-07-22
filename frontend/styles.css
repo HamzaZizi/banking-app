@@ -1,15 +1,15 @@
 :root {
-    --brand-purple: #4B1E63;
-    --brand-purple-dark: #331342;
-    --brand-purple-light: #7B4B9B;
-    --brand-accent: #E8DEF0;
-    --text-dark: #1F1A24;
-    --text-muted: #6B6470;
-    --bg: #F6F3F8;
+    --brand-red: #E60000;
+    --brand-red-dark: #990000;
+    --brand-red-light: #FF6A6A;
+    --brand-accent: #FFE0E0;
+    --text-dark: #262626;
+    --text-muted: #6E6E6E;
+    --bg: #F4F4F4;
     --white: #FFFFFF;
-    --border: #ECE6F1;
-    --positive: #1E7A46;
-    --negative: #B00020;
+    --border: #E4E4E4;
+    --positive: #008A00;
+    --negative: #BD0000;
 }
 
 * {
@@ -18,14 +18,14 @@
 
 body {
     margin: 0;
-    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: "Vodafone", "VodafoneRg", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text-dark);
 }
 
 /* Top bar */
 .topbar {
-    background: linear-gradient(120deg, var(--brand-purple), var(--brand-purple-dark));
+    background: linear-gradient(120deg, var(--brand-red), var(--brand-red-dark));
     color: var(--white);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     position: sticky;
@@ -44,18 +44,37 @@ body {
 
 .brand {
     display: flex;
-    align-items: baseline;
-    gap: 6px;
+    align-items: center;
+    gap: 10px;
     font-weight: 700;
     font-size: 22px;
 }
 
 .brand-mark {
     background: var(--white);
-    color: var(--brand-purple);
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 18px;
+    color: var(--brand-red);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    line-height: 1;
+    font-weight: 900;
+    transform: rotate(8deg);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.brand-name {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--white);
+}
+
+.brand-sub {
+    font-weight: 400;
+    opacity: 0.9;
 }
 
 .tabs {
@@ -81,7 +100,7 @@ body {
 
 .tab-btn.active {
     background: var(--white);
-    color: var(--brand-purple);
+    color: var(--brand-red);
 }
 
 .user-area {
@@ -95,7 +114,7 @@ body {
 }
 
 .user-avatar {
-    background: var(--brand-purple-dark);
+    background: var(--brand-red-dark);
     border: 1px solid rgba(255, 255, 255, 0.25);
     width: 34px;
     height: 34px;
@@ -121,7 +140,7 @@ body {
 .page-head h1 {
     margin: 0;
     font-size: 26px;
-    color: var(--brand-purple-dark);
+    color: var(--brand-red-dark);
 }
 
 .page-sub {
@@ -140,7 +159,7 @@ body {
 .card {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     padding: 20px;
 }
 
@@ -155,7 +174,7 @@ body {
 .summary-value {
     font-size: 26px;
     font-weight: 700;
-    color: var(--brand-purple);
+    color: var(--brand-red);
 }
 
 .summary-foot {
@@ -183,7 +202,7 @@ body {
 .panel-head h2 {
     font-size: 20px;
     margin: 0;
-    color: var(--brand-purple-dark);
+    color: var(--brand-red-dark);
 }
 
 .panel-hint {
@@ -201,7 +220,7 @@ body {
 .account-row {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     padding: 18px 20px;
     display: flex;
     align-items: center;
@@ -212,7 +231,7 @@ body {
 }
 
 .account-row:hover {
-    border-color: var(--brand-purple-light);
+    border-color: var(--brand-red-light);
 }
 
 .account-row:active {
@@ -224,7 +243,7 @@ body {
     height: 44px;
     border-radius: 10px;
     background: var(--brand-accent);
-    color: var(--brand-purple);
+    color: var(--brand-red);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -257,7 +276,7 @@ body {
 .account-amounts .balance {
     font-size: 20px;
     font-weight: 700;
-    color: var(--brand-purple);
+    color: var(--brand-red);
 }
 
 .account-amounts .available {
@@ -267,7 +286,7 @@ body {
 }
 
 .chevron {
-    color: var(--brand-purple-light);
+    color: var(--brand-red-light);
     font-size: 20px;
     flex-shrink: 0;
 }
@@ -283,8 +302,8 @@ body {
     background: var(--white);
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
-    border-left: 4px solid var(--brand-purple-light);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border-left: 4px solid var(--brand-red-light);
 }
 
 .mortgage-card .name {
@@ -369,7 +388,7 @@ body {
     padding: 8px 12px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--brand-purple);
+    color: var(--brand-red);
     cursor: pointer;
     white-space: nowrap;
 }
@@ -377,7 +396,7 @@ body {
 .drawer-title-wrap h2 {
     margin: 0;
     font-size: 20px;
-    color: var(--brand-purple-dark);
+    color: var(--brand-red-dark);
 }
 
 .drawer-sub {
@@ -397,7 +416,7 @@ body {
     background: var(--white);
     border-radius: 10px;
     padding: 14px 16px;
-    box-shadow: 0 2px 8px rgba(75, 30, 99, 0.06);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .balance-tile .label {
@@ -410,7 +429,7 @@ body {
 .balance-tile .value {
     font-size: 20px;
     font-weight: 700;
-    color: var(--brand-purple);
+    color: var(--brand-red);
     margin-top: 4px;
 }
 
@@ -428,7 +447,7 @@ body {
     background: var(--white);
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .txn-row {
@@ -448,7 +467,7 @@ body {
     height: 34px;
     border-radius: 50%;
     background: var(--brand-accent);
-    color: var(--brand-purple);
+    color: var(--brand-red);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -562,7 +581,7 @@ body {
 
 /* ---- Buttons ------------------------------------------------------------- */
 .btn-primary {
-    background: var(--brand-purple);
+    background: var(--brand-red);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -574,7 +593,7 @@ body {
 }
 
 .btn-primary:hover {
-    background: var(--brand-purple-dark);
+    background: var(--brand-red-dark);
 }
 
 .btn-ghost {
@@ -584,12 +603,12 @@ body {
     padding: 8px 14px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--brand-purple);
+    color: var(--brand-red);
     cursor: pointer;
 }
 
 .btn-ghost:hover {
-    border-color: var(--brand-purple-light);
+    border-color: var(--brand-red-light);
 }
 
 .btn-ghost:disabled {
@@ -619,7 +638,7 @@ body {
 .filter-input:focus,
 .filter-select:focus {
     outline: none;
-    border-color: var(--brand-purple-light);
+    border-color: var(--brand-red-light);
 }
 
 .filter-input[type="search"] {
@@ -638,7 +657,7 @@ body {
 .pay-card h3 {
     margin: 0 0 14px;
     font-size: 16px;
-    color: var(--brand-purple-dark);
+    color: var(--brand-red-dark);
 }
 
 .transfer-form {
@@ -695,7 +714,7 @@ body {
     height: 34px;
     border-radius: 50%;
     background: var(--brand-accent);
-    color: var(--brand-purple);
+    color: var(--brand-red);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -723,7 +742,7 @@ body {
     text-align: right;
     font-weight: 700;
     font-size: 14px;
-    color: var(--brand-purple);
+    color: var(--brand-red);
 }
 
 .panel-subhead {
@@ -733,7 +752,7 @@ body {
 .panel-subhead h3 {
     margin: 0;
     font-size: 16px;
-    color: var(--brand-purple-dark);
+    color: var(--brand-red-dark);
 }
 
 .scheduled-list {
@@ -742,7 +761,7 @@ body {
     background: var(--white);
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .scheduled-row {
@@ -762,7 +781,7 @@ body {
     height: 34px;
     border-radius: 50%;
     background: var(--brand-accent);
-    color: var(--brand-purple);
+    color: var(--brand-red);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -794,7 +813,7 @@ body {
 
 .sched-amounts .balance {
     font-weight: 700;
-    color: var(--brand-purple);
+    color: var(--brand-red);
     font-size: 15px;
 }
 
@@ -812,7 +831,7 @@ body {
     margin-right: 6px;
 }
 
-.pill-standing_order { background: #E8DEF0; color: var(--brand-purple); }
+.pill-standing_order { background: #FFE0E0; color: var(--brand-red); }
 .pill-direct_debit   { background: #DDEEF6; color: #14607A; }
 .pill-scheduled      { background: #FBE5D6; color: #9A5B12; }
 
@@ -829,11 +848,11 @@ body {
 
 /* ---- Cards --------------------------------------------------------------- */
 .bank-card {
-    background: linear-gradient(135deg, var(--brand-purple), var(--brand-purple-dark));
+    background: linear-gradient(135deg, var(--brand-red), var(--brand-red-dark));
     color: #fff;
     border-radius: 14px;
     padding: 20px;
-    box-shadow: 0 4px 16px rgba(75, 30, 99, 0.25);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -841,7 +860,7 @@ body {
 }
 
 .bank-card.credit {
-    background: linear-gradient(135deg, #2A2140, #4B1E63);
+    background: linear-gradient(135deg, #4A4D4E, #262626);
 }
 
 .bank-card.frozen {
@@ -920,7 +939,7 @@ body {
     background: var(--white);
     border-radius: 12px;
     padding: 16px 20px;
-    box-shadow: 0 2px 10px rgba(75, 30, 99, 0.08);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .insight-bar-row {
@@ -950,7 +969,7 @@ body {
 
 .insight-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--brand-purple-light), var(--brand-purple));
+    background: linear-gradient(90deg, var(--brand-red-light), var(--brand-red));
     border-radius: 6px;
 }
 
@@ -959,7 +978,7 @@ body {
     text-align: right;
     font-size: 13px;
     font-weight: 700;
-    color: var(--brand-purple);
+    color: var(--brand-red);
     flex-shrink: 0;
 }
 
@@ -985,12 +1004,12 @@ body {
     padding: 14px 16px;
     display: flex;
     gap: 12px;
-    box-shadow: 0 2px 8px rgba(75, 30, 99, 0.06);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     border-left: 4px solid transparent;
 }
 
 .notif-row.unread {
-    border-left-color: var(--brand-purple);
+    border-left-color: var(--brand-red);
 }
 
 .notif-tag {
