@@ -623,7 +623,7 @@ async function init() {
     } catch (err) {
         console.error(err);
         document.getElementById("accounts-list").innerHTML =
-            '<p class="error">Could not reach the C&amp;I Banking API. Check the backend is running.</p>';
+            '<p class="error">Could not reach the Vodafone Money API. Check the backend is running.</p>';
     }
 }
 
