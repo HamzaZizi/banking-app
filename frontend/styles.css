@@ -16,6 +16,10 @@
 
 * { box-sizing: border-box; }
 
+/* The hidden attribute must beat author display rules (e.g. .login-screen
+   sets display:flex, which would otherwise defeat the UA [hidden] rule). */
+[hidden] { display: none !important; }
+
 body {
     margin: 0;
     font-family: "Vodafone", "VodafoneRg", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
