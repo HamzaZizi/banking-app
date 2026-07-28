@@ -19,3 +19,6 @@ frontend/config.js
 
 # Claude Code
 .claude/
+
+# Internal docs (kept local, not published)
+README.md
