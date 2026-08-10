@@ -201,7 +201,7 @@ describe("renderBroadband()", () => {
 
 describe("DEMO_DATA", () => {
     test("exposes a coherent set of demo content", () => {
-        expect(DEMO_DATA.customer.name).toBe("Alex Morgan");
+        expect(DEMO_DATA.customer.name).toBe("Luke Bradley");
         expect(DEMO_DATA.bills.length).toBeGreaterThan(0);
         expect(DEMO_DATA.plan.dataAllowanceGB).toBe(100);
     });

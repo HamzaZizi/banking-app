@@ -60,10 +60,10 @@ async function fetchJson(path) {
 
 const DEMO_DATA = {
     customer: {
-        name: "Alex Morgan",
+        name: "Luke Bradley",
         accountNumber: "20 8412 6673",
         mobile: "07700 900482",
-        email: "alex.morgan@example.co.uk",
+        email: "luke.bradley@example.co.uk",
         memberSince: "March 2019",
     },
     plan: {
@@ -510,7 +510,7 @@ function renderNotifications(notifications) {
 // ---- Page wiring ------------------------------------------------------------
 
 const PAGE_TITLES = {
-    dashboard: ["Hi Alex, welcome back", "Here's everything on your account"],
+    dashboard: ["Hi Luke, welcome back", "Here's everything on your account"],
     usage: ["Your usage", "Data, minutes and texts this cycle"],
     bills: ["Bills & payments", "View and download your monthly bills"],
     plan: ["Your plan", "Manage your tariff, extras and device"],
