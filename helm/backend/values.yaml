@@ -1,18 +1,23 @@
 # Resource name is prefixed with the environment (dev/sit/staging/prod) so names
 # are self-describing across namespaces, e.g. dev-banking-app-backend. The frontend
 # Ingress routes /api to this exact name (also prefixed with <+env.name>).
-name: <+env.name.toLowerCase()>-<+service.name>
+# name: <+env.name.toLowerCase()>-<+service.name>
+name: ${{env.name.toLowerCase()>-<+service.name}}
+
 # Replica count is a service variable (base default "2") so a Harness environment
 # service override can raise it per-env WITHOUT editing this file again — Prod
 # overrides it to "5" for the canary/CV stage. Harness resolves this expression
 # in the values file at deploy time, before Helm templating.
-replicas: <+serviceVariables.replicas>
+# replicas: <+serviceVariables.replicas>
+replicas: ${{serviceVariables.replicas}}
 
-image: <+artifact.image>
-# dockercfg: <+artifact.imagePullSecret>
+# image: <+artifact.image>
+image: ${{artifact.image}}
 
 createNamespace: true
-namespace: <+infra.namespace>
+# namespace: <+infra.namespace>
+namespace: ${{infra.namespace}}
+
 
 # ClusterIP is right for the backend: only the frontend (and ingress, if used)
 # needs to reach it, it doesn't need its own public endpoint.
