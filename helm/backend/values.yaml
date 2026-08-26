@@ -8,7 +8,8 @@ name: <+env.name.toLowerCase()>-<+service.name>
 # service override can raise it per-env WITHOUT editing this file again — Prod
 # overrides it to "5" for the canary/CV stage. Harness resolves this expression
 # in the values file at deploy time, before Helm templating.
-replicas: <+serviceVariables.replicas>
+replicas: 3
+# replicas: <+serviceVariables.replicas>
 # replicas: ${{serviceVariables.replicas}}
 
 image: <+artifact.image>
