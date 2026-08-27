@@ -250,6 +250,59 @@ body {
 }
 .badge-ico { font-size: 15px; }
 
+/* ---- Terminal ------------------------------------------------------------ */
+.terminal {
+    margin: 4px 0 30px;
+    max-width: 460px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .45);
+    overflow: hidden;
+    font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+}
+.term-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, .25);
+    border-bottom: 1px solid var(--line);
+}
+.term-dot { width: 11px; height: 11px; border-radius: 50%; }
+.term-dot:nth-child(1) { background: #ff5f57; }
+.term-dot:nth-child(2) { background: #febc2e; }
+.term-dot:nth-child(3) { background: #28c840; }
+.term-title { margin-left: 8px; font-size: 12px; color: var(--ink-faint); letter-spacing: .3px; }
+.term-body { padding: 16px; font-size: 13.5px; line-height: 1.95; overflow-x: auto; }
+.term-line {
+    color: var(--ink-dim);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(4px);
+    animation: termln .4s ease forwards;
+}
+.term-line:nth-child(1) { animation-delay: .25s; }
+.term-line:nth-child(2) { animation-delay: 1.0s; }
+.term-line:nth-child(3) { animation-delay: 1.6s; }
+.term-line:nth-child(4) { animation-delay: 2.2s; }
+.term-line:nth-child(5) { animation-delay: 2.9s; }
+@keyframes termln { to { opacity: 1; transform: none; } }
+.term-prompt { color: var(--harness); font-weight: 700; margin-right: 8px; }
+.term-ok  { color: var(--good); font-weight: 700; margin-right: 10px; }
+.term-ai  { color: var(--canary); font-weight: 700; margin-right: 10px; }
+.term-mut { color: var(--ink-faint); }
+.term-caret {
+    display: inline-block;
+    width: 8px; height: 15px;
+    margin-left: 6px;
+    vertical-align: -2px;
+    background: var(--canary);
+    animation: caret 1s step-end infinite 3.2s;
+    opacity: 0;
+}
+@keyframes caret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
 /* ---- Captain Canary ------------------------------------------------------ */
 .hero-art { display: grid; place-items: center; }
 .canary-stage {
@@ -385,8 +438,12 @@ body {
     .canary-stage { width: 260px; height: 260px; }
     .canary { width: auto; height: 230px; }
     .brand-tag, .brand-sep { display: none; }
+    .terminal { max-width: 100%; }
+    .term-body { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .bg-glow, .canary, .canary-ring, .speech, .pill .dot { animation: none !important; }
+    .term-line { animation: none !important; opacity: 1 !important; transform: none !important; }
+    .term-caret { animation: none !important; opacity: 1 !important; }
 }

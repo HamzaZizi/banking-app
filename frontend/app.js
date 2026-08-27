@@ -15,13 +15,13 @@ const STAGE_ORDER = ["build", "scan", "deploy", "verify", "promote"];
 
 // What Captain Canary says at each moment of the show.
 const SPEECH = {
-    idle: "Ready to ship 🚀",
-    build: "Build's green 📦",
-    scan: "Security gate: clear 🛡️",
-    deploy: "Rolling out the canary 🐦",
-    verify: "Verifying health 🩺",
-    promote: "Promoted! Full send ✅",
-    done: "Shipped it 🎉",
+    idle: "Ready when you are 🐤",
+    build: "Build's green ✅",
+    scan: "Security gate: passed 🛡️",
+    deploy: "Canary's rolling out 🐤",
+    verify: "AI's watching the metrics 🤖",
+    promote: "Verified — promoting 🚀",
+    done: "Shipped. Safe and sound ✨",
 };
 
 // Presenter-facing hint under the button.

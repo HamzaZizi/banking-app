@@ -31,31 +31,36 @@
     <!-- Hero ------------------------------------------------------------------->
     <main class="hero">
         <section class="hero-copy">
-            <span class="eyebrow">Deployed via Harness GitOps</span>
-            <h1>Welcome to the<br /><span class="grad">Landing Zone</span>.</h1>
-            <p class="lede">
-                This is the calm before the deploy. In a moment we'll raise a pull request,
-                let the pipeline run its <strong>security gate</strong> and
-                <strong>canary analysis</strong>, and watch this page transform &mdash; live.
-            </p>
+            <span class="eyebrow">Running live &middot; shipped by a Harness pipeline</span>
+            <h1>Push to prod at the<br /><span class="grad">speed of AI</span>.</h1>
+            <p class="lede">Open a PR. The pipeline proves it's safe. <strong>Ship it.</strong></p>
+
+            <div class="terminal" role="img" aria-label="Terminal: git push triggers a Harness pipeline — guardrails pass, security passes, AI verifies the canary, then it's promoted to production.">
+                <div class="term-bar">
+                    <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+                    <span class="term-title">harness-pipeline</span>
+                </div>
+                <div class="term-body">
+                    <div class="term-line"><span class="term-prompt">$</span> git push harness main</div>
+                    <div class="term-line"><span class="term-ok">&#10003;</span> guardrails<span class="term-mut"> &middot; policy-as-code</span></div>
+                    <div class="term-line"><span class="term-ok">&#10003;</span> security<span class="term-mut"> &middot; 0 criticals</span></div>
+                    <div class="term-line"><span class="term-ai">&#9670;</span> verify<span class="term-mut"> &middot; AI reading the canary&hellip;</span></div>
+                    <div class="term-line"><span class="term-ok">&#10003;</span> promote<span class="term-mut"> &middot; live in 4m&nbsp;12s</span><span class="term-caret"></span></div>
+                </div>
+            </div>
+
             <div class="cta-row">
                 <button class="btn-primary" id="deploy-btn">
                     <span class="btn-label">Prime the canary</span>
                     <span class="btn-spark" aria-hidden="true"></span>
                 </button>
-                <span class="hint" id="deploy-hint">Give Captain Canary a nudge &rarr;</span>
+                <span class="hint" id="deploy-hint">Nudge the canary &mdash; watch a rollout &rarr;</span>
             </div>
 
-            <p class="tagline">
-                <span class="tagline-spark" aria-hidden="true">&#9889;</span>
-                Ready to ship <strong>secure</strong> and <strong>resilient</strong> code
-                &mdash; at the speed of <span class="grad">AI</span>. &#128036;
-            </p>
-
             <ul class="badges">
-                <li><span class="badge-ico">&#9881;&#65039;</span> Continuous Delivery</li>
-                <li><span class="badge-ico">&#128737;&#65039;</span> Security Testing (STO)</li>
-                <li><span class="badge-ico">&#128036;</span> Continuous Verification</li>
+                <li><span class="badge-ico">&#128737;&#65039;</span> Governance</li>
+                <li><span class="badge-ico">&#129302;</span> AI-native SDLC</li>
+                <li><span class="badge-ico">&#128036;</span> Canary &amp; auto-rollback</li>
             </ul>
         </section>
 
@@ -64,7 +69,7 @@
             <div class="canary-stage">
                 <div class="canary-ring" aria-hidden="true"></div>
                 <img class="canary" src="captain-canary.png?v=landing-1" alt="Captain Canary, the Harness mascot" width="500" height="572" />
-                <div class="speech" id="canary-speech">Ready to ship &#128640;</div>
+                <div class="speech" id="canary-speech">Ready when you are &#128036;</div>
             </div>
         </section>
     </main>
@@ -83,7 +88,7 @@
     <!-- Footer ----------------------------------------------------------------->
     <footer class="foot">
         <span>Harness demo environment &middot; <span id="build-branch">branch: landing</span></span>
-        <span class="foot-note">Not a real product page. For demonstration only. <span id="year"></span></span>
+        <span class="foot-note">No real customers were deployed in the making of this demo. <span id="year"></span></span>
     </footer>
 
     <script src="config.js"></script>
