@@ -3,186 +3,94 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>C&amp;I Banking | Online Banking</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>Harness Demo Landing Zone | Captain Canary</title>
+    <meta name="description" content="Harness demo landing zone — deployed via Harness GitOps. Captain Canary is standing by." />
+    <link rel="stylesheet" href="styles.css?v=landing-1" />
 </head>
 <body>
+    <!-- Animated background ---------------------------------------------------->
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
+
+    <!-- Top bar ---------------------------------------------------------------->
     <header class="topbar">
         <div class="topbar-inner">
-            <div class="brand">
-                <span class="brand-mark">C&amp;I</span>
-                <span class="brand-name">Banking</span>
-            </div>
-            <nav class="tabs">
-                <button class="tab-btn active" data-tab="accounts">Accounts</button>
-                <button class="tab-btn" data-tab="transactions">Transactions</button>
-                <button class="tab-btn" data-tab="payments">Payments</button>
-                <button class="tab-btn" data-tab="cards">Cards</button>
-                <button class="tab-btn" data-tab="insights">Insights</button>
-                <button class="tab-btn" data-tab="mortgages">Mortgages</button>
-            </nav>
-            <div class="user-area">
-                <button class="bell" id="bell-btn" aria-label="Notifications">
-                    &#128276;<span class="bell-badge" id="bell-badge" hidden>0</span>
-                </button>
-                <span class="user-greeting">Alex Morgan</span>
-                <span class="user-avatar">AM</span>
+            <a class="brand" href="#" onclick="return false" aria-label="Harness">
+                <span class="brand-logo" aria-hidden="true"><span class="brand-bracket">&lt;/&gt;</span></span>
+                <span class="brand-name">Harness</span>
+                <span class="brand-sep">|</span>
+                <span class="brand-tag">Demo Landing Zone</span>
+            </a>
+            <div class="topbar-actions">
+                <span class="pill pill-live"><span class="dot"></span> Live</span>
+                <a class="btn-ghost" href="https://harness.awsworkshop.io/010_introduction/14_harness.html" target="_blank" rel="noopener">Workshop &#8599;</a>
             </div>
         </div>
     </header>
 
-    <main class="content">
-        <div class="page-head">
-            <h1 id="page-title">Your money</h1>
-            <p class="page-sub">Last logged in today at 09:14 &middot; All balances in GBP</p>
-        </div>
+    <!-- Hero ------------------------------------------------------------------->
+    <main class="hero">
+        <section class="hero-copy">
+            <span class="eyebrow">Deployed via Harness GitOps</span>
+            <h1>Welcome to the<br /><span class="grad">Landing Zone</span>.</h1>
+            <p class="lede">
+                This is the calm before the deploy. In a moment we'll raise a pull request,
+                let the pipeline run its <strong>security gate</strong> and
+                <strong>canary analysis</strong>, and watch this page transform &mdash; live.
+            </p>
+            <div class="cta-row">
+                <button class="btn-primary" id="deploy-btn">
+                    <span class="btn-label">Prime the canary</span>
+                    <span class="btn-spark" aria-hidden="true"></span>
+                </button>
+                <span class="hint" id="deploy-hint">Give Captain Canary a nudge &rarr;</span>
+            </div>
 
-        <section class="summary-cards" id="summary-cards">
-            <div class="card summary-card">
-                <div class="summary-label">Total balance</div>
-                <div class="summary-value" id="summary-total-balance">--</div>
-                <div class="summary-foot">across your accounts</div>
-            </div>
-            <div class="card summary-card">
-                <div class="summary-label">Accounts</div>
-                <div class="summary-value" id="summary-account-count">--</div>
-                <div class="summary-foot">current, savings &amp; business</div>
-            </div>
-            <div class="card summary-card">
-                <div class="summary-label">Mortgage balance</div>
-                <div class="summary-value" id="summary-mortgage-balance">--</div>
-                <div class="summary-foot">total outstanding</div>
-            </div>
+            <ul class="badges">
+                <li><span class="badge-ico">&#9881;&#65039;</span> Continuous Delivery</li>
+                <li><span class="badge-ico">&#128737;&#65039;</span> Security Testing (STO)</li>
+                <li><span class="badge-ico">&#128036;</span> Continuous Verification</li>
+            </ul>
         </section>
 
-        <!-- Accounts ---------------------------------------------------------->
-        <section id="accounts-panel" class="panel active">
-            <div class="panel-head">
-                <h2>Accounts</h2>
-                <span class="panel-hint">Select an account to view recent transactions</span>
+        <!-- Captain Canary ---------------------------------------------------->
+        <section class="hero-art" aria-label="Captain Canary, the Harness mascot">
+            <div class="canary-stage">
+                <div class="canary-ring" aria-hidden="true"></div>
+                <svg class="canary" viewBox="0 0 240 240" role="img" aria-label="Captain Canary">
+                    <path class="cc-cape" d="M120 96c34 6 60 30 66 70 2 14-6 24-20 20-26-8-46-30-54-58-4-16-8-36 8-32z" />
+                    <ellipse class="cc-body" cx="112" cy="128" rx="58" ry="62" />
+                    <ellipse class="cc-belly" cx="104" cy="140" rx="34" ry="40" />
+                    <path class="cc-wing" d="M150 120c22 4 34 20 30 40-2 10-14 12-24 6-14-8-24-24-24-40 0-8 8-8 18-6z" />
+                    <path class="cc-tail" d="M56 150c-20 4-34 16-40 34 16-2 30-8 44-18z" />
+                    <path class="cc-foot" d="M96 186l-6 16m22-16l2 16" />
+                    <circle class="cc-body" cx="132" cy="86" r="40" />
+                    <path class="cc-mask" d="M100 78c18-14 44-14 62 0 4 3 3 9-2 10-20 4-38 4-58 0-5-1-6-7-2-10z" />
+                    <circle class="cc-eye" cx="118" cy="82" r="5" />
+                    <circle class="cc-eye" cx="146" cy="82" r="5" />
+                    <path class="cc-beak" d="M160 92l22 6-20 12z" />
+                    <circle class="cc-cheek" cx="112" cy="100" r="6" />
+                </svg>
+                <div class="speech" id="canary-speech">Ready to ship &#128640;</div>
             </div>
-            <div id="accounts-list" class="account-list"></div>
-        </section>
-
-        <!-- Transactions (search across all accounts) ------------------------->
-        <section id="transactions-panel" class="panel">
-            <div class="panel-head">
-                <h2>Transactions</h2>
-                <span class="panel-hint">Search and filter across all your accounts</span>
-            </div>
-            <div class="filter-bar">
-                <input type="search" id="txn-search" class="filter-input" placeholder="Search description or category…" />
-                <select id="txn-account" class="filter-select"><option value="">All accounts</option></select>
-                <select id="txn-category" class="filter-select"><option value="">All categories</option></select>
-                <select id="txn-type" class="filter-select">
-                    <option value="">Money in &amp; out</option>
-                    <option value="CREDIT">Money in</option>
-                    <option value="DEBIT">Money out</option>
-                </select>
-                <input type="date" id="txn-from" class="filter-input" />
-                <input type="date" id="txn-to" class="filter-input" />
-                <button id="txn-clear" class="btn-ghost">Clear</button>
-            </div>
-            <div id="transactions-results" class="txn-list"></div>
-        </section>
-
-        <!-- Payments (transfer, payees, scheduled, direct debits) ------------->
-        <section id="payments-panel" class="panel">
-            <div class="panel-head">
-                <h2>Payments &amp; transfers</h2>
-            </div>
-            <div class="payments-grid">
-                <div class="card pay-card">
-                    <h3>Move money between your accounts</h3>
-                    <form id="transfer-form" class="transfer-form">
-                        <label>From
-                            <select id="tf-from" class="filter-select"></select>
-                        </label>
-                        <label>To
-                            <select id="tf-to" class="filter-select"></select>
-                        </label>
-                        <label>Amount
-                            <input type="number" id="tf-amount" class="filter-input" min="0.01" step="0.01" placeholder="0.00" />
-                        </label>
-                        <label>Reference
-                            <input type="text" id="tf-reference" class="filter-input" maxlength="35" placeholder="e.g. Savings top-up" />
-                        </label>
-                        <button type="submit" class="btn-primary">Send transfer</button>
-                        <div id="transfer-result" class="transfer-result" role="status"></div>
-                    </form>
-                </div>
-                <div class="card pay-card">
-                    <h3>Saved payees</h3>
-                    <div id="payees-list" class="payee-list"></div>
-                </div>
-            </div>
-            <div class="panel-subhead"><h3>Scheduled payments &amp; direct debits</h3></div>
-            <div id="scheduled-list" class="scheduled-list"></div>
-        </section>
-
-        <!-- Cards ------------------------------------------------------------->
-        <section id="cards-panel" class="panel">
-            <div class="panel-head">
-                <h2>Cards</h2>
-                <span class="panel-hint">Freeze a card instantly if it&rsquo;s lost</span>
-            </div>
-            <div id="cards-list" class="card-grid"></div>
-        </section>
-
-        <!-- Insights ---------------------------------------------------------->
-        <section id="insights-panel" class="panel">
-            <div class="panel-head">
-                <h2>Spending insights</h2>
-                <label class="inline-label">Account
-                    <select id="insights-account" class="filter-select"></select>
-                </label>
-            </div>
-            <div id="insights-content" class="insights-content"></div>
-        </section>
-
-        <!-- Mortgages --------------------------------------------------------->
-        <section id="mortgages-panel" class="panel">
-            <div class="panel-head">
-                <h2>Mortgages</h2>
-            </div>
-            <div id="mortgages-list" class="card-grid"></div>
         </section>
     </main>
 
-    <!-- Account detail / transactions drill-down -->
-    <div id="account-drawer" class="drawer" aria-hidden="true">
-        <div class="drawer-overlay" data-close-drawer></div>
-        <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-            <div class="drawer-header">
-                <button class="drawer-back" data-close-drawer aria-label="Close">&larr; Back</button>
-                <div class="drawer-title-wrap">
-                    <h2 id="drawer-title">Account</h2>
-                    <div class="drawer-sub" id="drawer-sub"></div>
-                </div>
-            </div>
-            <div class="drawer-balances" id="drawer-balances"></div>
-            <div class="drawer-section-title">Recent transactions</div>
-            <div class="txn-list" id="drawer-transactions"></div>
-        </aside>
-    </div>
+    <!-- Pipeline strip --------------------------------------------------------->
+    <section class="pipe">
+        <div class="pipe-inner" id="pipeline">
+            <div class="stage done" data-stage="build"><span class="s-ico">&#129521;</span><span>Build</span></div>
+            <div class="stage done" data-stage="scan"><span class="s-ico">&#128737;&#65039;</span><span>STO Scan</span></div>
+            <div class="stage active" data-stage="deploy"><span class="s-ico">&#128640;</span><span>Deploy</span></div>
+            <div class="stage" data-stage="verify"><span class="s-ico">&#128036;</span><span>Verify</span></div>
+            <div class="stage" data-stage="promote"><span class="s-ico">&#9989;</span><span>Promote</span></div>
+        </div>
+    </section>
 
-    <!-- Notifications inbox drawer -->
-    <div id="notifications-drawer" class="drawer" aria-hidden="true">
-        <div class="drawer-overlay" data-close-notifications></div>
-        <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="notifications-title">
-            <div class="drawer-header">
-                <button class="drawer-back" data-close-notifications aria-label="Close">&larr; Back</button>
-                <div class="drawer-title-wrap">
-                    <h2 id="notifications-title">Inbox</h2>
-                    <div class="drawer-sub">Messages &amp; alerts</div>
-                </div>
-            </div>
-            <div class="notif-list" id="notifications-list"></div>
-        </aside>
-    </div>
-
-    <footer class="footer">
-        <p>C&amp;I Banking is a fictional demo application built for illustrative purposes only. No real account data.</p>
+    <!-- Footer ----------------------------------------------------------------->
+    <footer class="foot">
+        <span>Harness demo environment &middot; <span id="build-branch">branch: landing</span></span>
+        <span class="foot-note">Not a real product page. For demonstration only. <span id="year"></span></span>
     </footer>
 
     <script src="config.js"></script>
