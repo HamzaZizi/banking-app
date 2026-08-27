@@ -4,6 +4,7 @@ COPY index.html /usr/share/nginx/html/index.html
 COPY styles.css /usr/share/nginx/html/styles.css
 COPY app.js /usr/share/nginx/html/app.js
 COPY config.template.js /usr/share/nginx/html/config.template.js
+COPY captain-canary.png /usr/share/nginx/html/captain-canary.png
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 

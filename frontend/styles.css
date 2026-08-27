@@ -270,8 +270,10 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .canary {
-    width: 280px;
-    height: 280px;
+    width: auto;
+    height: 300px;
+    max-width: 100%;
+    object-fit: contain;
     filter: drop-shadow(0 24px 30px rgba(0, 0, 0, .5));
     animation: bob 4.5s ease-in-out infinite;
     transform-origin: center;
@@ -287,17 +289,6 @@ body {
     60%  { transform: translateY(-40px) rotate(8deg) scale(1.04); }
     100% { transform: translateY(0) rotate(0); }
 }
-
-.cc-body  { fill: var(--canary); }
-.cc-belly { fill: #fff2b0; }
-.cc-wing  { fill: var(--canary-2); }
-.cc-tail  { fill: var(--canary-2); }
-.cc-cape  { fill: var(--harness); opacity: .92; }
-.cc-mask  { fill: #06121f; }
-.cc-eye   { fill: #06121f; }
-.cc-beak  { fill: #ff8a00; }
-.cc-cheek { fill: #ff9db0; opacity: .8; }
-.cc-foot  { stroke: #ff8a00; stroke-width: 4; stroke-linecap: round; fill: none; }
 
 .speech {
     position: absolute;
@@ -392,7 +383,7 @@ body {
     .hero { grid-template-columns: 1fr; padding-top: 40px; gap: 8px; }
     .hero-art { order: -1; }
     .canary-stage { width: 260px; height: 260px; }
-    .canary { width: 210px; height: 210px; }
+    .canary { width: auto; height: 230px; }
     .brand-tag, .brand-sep { display: none; }
 }
 
