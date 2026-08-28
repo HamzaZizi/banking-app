@@ -40,7 +40,8 @@ ingress:
   # Name + port of the backend Service the /api route points at. Must match the
   # backend's prefixed resource name (<+env.name>-<+service.name>), e.g.
   # dev-banking-app-backend. Same env, so <+env.name> resolves identically here.
-  backendServiceName: <+env.name.toLowerCase()>-banking-app-backend
+  backendServiceName: dev-onboarding-banking-app-backend
+  # backendServiceName: <+env.name.toLowerCase()>-banking-app-backend
   backendServicePort: 8080
 
 livenessPath: /healthz
