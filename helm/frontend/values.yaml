@@ -1,15 +1,18 @@
 # Resource name is prefixed with the environment (dev/sit/staging/prod) so names
 # are self-describing across namespaces, e.g. dev-banking-app-frontend.
-name: <+env.name.toLowerCase()>-<+service.name>
+name: onboarding-app-frontend
+# name: <+env.name.toLowerCase()>-<+service.name>
 # name: ${{env.name.toLowerCase()>-<+service.name}}
 
 replicas: 2
 
-image: <+artifact.image>
+image: 1.0.143
+# image: <+artifact.image>
 # image: ${{artifact.image }}
 
 createNamespace: true
-namespace: <+infra.namespace>
+namespace: devsecops-deafeninghopehws148
+# namespace: <+infra.namespace>
 # namespace: ${{infra.namespace}}
 
 
