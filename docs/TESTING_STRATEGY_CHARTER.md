@@ -2,309 +2,259 @@
 
 | | |
 |---|---|
-| **Status** | Draft v1.0 — pending engineering sign-off |
+| **Status** | Draft v2.0 — scopes the compliance agent to genuinely judgment-based rules only; pending eng sign-off |
 | **Owner** | Hamza Zizi (DevX) — reassign to QA/Eng lead once ratified |
-| **Applies to** | `banking-app` repository and its `hamza_devx` Harness pipeline |
-| **Last updated** | 2026-09-01 |
-| **Review cadence** | Quarterly, or on any new production incident traced to a test gap |
+| **Applies to** | `banking-app` repo and its `hamza_devx` Harness pipeline |
+| **Last updated** | 2026-09-02 |
+| **Review cadence** | Quarterly, or on any production incident traced to a test gap |
 
-> **This document is the single source of truth for what "adequately tested" means for `banking-app`.**
-> Every engineer — backend, frontend, and whoever writes pipeline YAML — is expected to satisfy the rules in this charter before code is considered mergeable and before a build is considered promotable. A separate automated agent (`Docs/QA_COMPLIANCE_AGENT.md`) scores actual pipeline executions against this charter and produces a confidence number used as a promotion gate. That agent has no authority to invent new rules — it only measures compliance with what's written here.
+> This is the source of truth for "adequately tested" on `banking-app`. `Docs/QA_COMPLIANCE_AGENT.md` scores pipeline runs against it and produces a confidence number used as a promotion gate — it has no authority to invent rules, only to measure compliance with what's written here.
+>
+> **v2.0 change:** every rule is tagged **Deterministic** (a structural fact — exists/ran/passed/above-threshold — a tool can check with no interpretation) or **Judgment** (requires reading a test's intent against this charter; no tool can answer it). The agent's confidence score (§6) covers **only** Judgment rules. Deterministic rules are enforced by their own named policy/tool, so nothing is checked twice by mechanisms that could disagree.
 
 ---
 
 ## Table of Contents
-
-1. [Purpose & Guiding Principles](#1-purpose--guiding-principles)
-2. [What Counts as a Real Test — the Quality Bar](#2-what-counts-as-a-real-test--the-quality-bar)
-3. [Testing Layers (L0–L9)](#3-testing-layers-l0l9)
-4. [Stage-to-Layer Compliance Map](#4-stage-to-layer-compliance-map)
+1. [Purpose & Principles](#1-purpose--principles)
+2. [Quality Bar — Anti-Pattern Register](#2-quality-bar--anti-pattern-register)
+3. [Testing Layers L0–L9](#3-testing-layers-l0l9)
+4. [Stage-to-Layer Map](#4-stage-to-layer-map)
 5. [Promotion Gate Minimum Bars](#5-promotion-gate-minimum-bars)
-6. [Confidence Scoring Framework](#6-confidence-scoring-framework)
-7. [Engineer Responsibilities & Definition of Done](#7-engineer-responsibilities--definition-of-done)
+6. [Confidence Scoring](#6-confidence-scoring)
+7. [Engineer Definition of Done](#7-engineer-definition-of-done)
 8. [Governance](#8-governance)
-9. [Appendix A — Rule ID Index](#appendix-a--rule-id-index)
+9. [Appendix — Semantic Bypass Glossary](#appendix--semantic-bypass-glossary)
 
 ---
 
-## 1. Purpose & Guiding Principles
+## 1. Purpose & Principles
 
-`banking-app` moves money. A test suite that merely "passes" is not sufficient evidence of safety — it must demonstrably exercise real behavior, real failure modes, and real data invariants. This charter exists to prevent three failure modes that this kind of system is especially prone to:
+`banking-app` moves money; a suite that merely "passes" isn't evidence of safety. Three failure modes this charter exists to prevent:
 
-1. **Coverage theater** — a test that runs code without asserting anything meaningful about its output still counts as "coverage" in most tooling. Coverage % is a necessary signal, never a sufficient one.
-2. **Brittle-instead-of-robust assertions** — hardcoding a literal data value (e.g. an exact dollar figure) into an assertion looks like a strong check and is actually a maintenance trap that gets deleted under deadline pressure the first time it breaks for an unrelated, legitimate reason.
-3. **Read-only blind spots** — it is far easier to write a `GET`-and-check-status test than to write a test that performs a write and verifies the side effect. A pipeline that is stronger at reading than at writing has this precisely backwards for a system whose core function is mutating account balances.
+1. **Coverage theater** — running code without asserting anything meaningful still counts as "coverage" in most tooling.
+2. **Brittle assertions** — hardcoding a literal data value looks rigorous but gets deleted under deadline pressure the first time it breaks for an unrelated reason.
+3. **Read-only blind spots** — `GET`-and-check-status tests are easier to write than write-and-verify tests, exactly backwards for a system whose job is mutating balances.
 
-**Guiding principles that every rule below derives from:**
+**Principles:**
+- Shift left — cheaper layers gate earlier.
+- Assert behavior and invariants, never a magic number tied to today's data.
+- Every mutating operation needs a test that performs the mutation **and** verifies the side effect, not just a 200.
+- A disabled control (`condition: "false"`) is scored **Missing**, not present — false confidence is worse than an absent control.
+- **Codify what's mechanical, reserve judgment for what resists codification.** "Does it exist/pass/clear a threshold" belongs to tooling. "Does this assertion verify the right property, does a fixture quietly neutralize the control, does the expected value track spec or implementation" is where AI review earns its keep. §2 draws this line for smells; the layer tables in §3 apply it to every rule.
 
-- **Shift left, fail cheap.** A defect caught in a unit test costs less than the same defect caught in SIT, and immeasurably less than one caught in production. Layers are ordered so cheaper/faster checks gate earlier.
-- **Assert behavior, not implementation, and never a magic number tied to a snapshot of today's data.**
-- **Every mutating operation must have at least one test that performs the mutation and verifies its side effect** — not just that the endpoint returned 200.
-- **A security or compliance gate that is wired but disabled is worse than one that doesn't exist**, because it creates false confidence. `condition: "false"` steps are treated as **Missing**, not as "present."
-- **Deterministic checks are preferred over AI judgment wherever a deterministic check can do the job** (mutation testing over vibes, schema validation over an LLM guessing if a JSON shape looks right). AI-assisted review (Section 6, and the agent that will consume this charter) exists to catch what deterministic tooling structurally cannot — assertion *intent*, test *design* quality, and gaps that only make sense in context.
-
-**Scope note — security scanning is intentionally out of this charter.** SAST, SCA/dependency scanning, container-image vulnerability scanning, DAST, rate-limiting/abuse protection, and security-header checks are governed (in theory) by a separate security policy gate outside this document. This charter is scoped to **test quality, functional correctness, and resilience** — whether the things we build actually work and keep working, not whether they're free of known vulnerabilities. The two concerns are complementary but are deliberately not conflated here.
+**Out of scope:** SAST, SCA, container scanning, DAST, rate-limiting, security headers — owned by a separate security policy gate. This charter covers test quality, functional correctness, and resilience only.
 
 ---
 
-## 2. What Counts as a Real Test — the Quality Bar
+## 2. Quality Bar — Anti-Pattern Register
 
-A test file, test case, or pipeline check is **non-compliant** with this charter if it exhibits any of the following, regardless of which layer it sits in. This is the shared "smell register" every rule in Section 3 refers back to.
+A test/check is non-compliant if it shows any pattern below, regardless of layer.
 
-| Smell | Example | Why it's banned |
+### 2.1 Mechanically Detectable — Tooling's Job
+Answerable by a deterministic tool (AST rule, mutation testing, dup-detector, grep) with zero reading of intent. If one shows up in review it's a **tooling gap to close**, never a finding the agent should carry as a stopgap.
+
+| Smell | Example | Detector |
 |---|---|---|
-| **Tautological assertion** | `assert True`, `assertEquals(x, x)` | Asserts nothing about behavior |
-| **Assertion-free test** | Calls the function, checks nothing | Passes regardless of correctness; inflates coverage without adding safety |
-| **Swallowed exception** | `try { ... } catch (Exception e) {}` | Hides real failures; the test can never fail even when the code is broken |
-| **Silently skipped/disabled test counted as coverage** | `@Disabled`, `xit(...)`, `.skip()` left in the suite indefinitely | Creates false confidence that behavior is verified when it is not |
-| **Hardcoded golden-value assertion on live/mutable data** | `.contains('"totalBalance":73936.09')` | Breaks on any legitimate data change; encourages deletion instead of fixing |
-| **Status-code-only assertion on a mutating endpoint** | `POST /transfer` asserted only on `200`, balance never re-checked | Verifies the server responded, not that the operation happened correctly |
-| **Single happy-path-only suite** | Only the success case is tested; no boundary, no negative, no auth-denial case | Real defects live at the edges, not in the middle of the happy path |
-| **Over-mocked test** | Every collaborator mocked, assertion only on mock call count | Tests that the code called a method, not that the method's effect was correct |
-| **Snapshot test with no reviewed diff policy** | `toMatchSnapshot()` regenerated on CI without human review | A snapshot that's always "updated to match" can never fail |
-| **Flaky/non-deterministic test disguised as passing** | Sleep-based waits, time-dependent assertions | Erodes trust in the pass rate itself; teams learn to ignore "known flaky" failures |
-| **Copy-pasted near-duplicate tests** | Ten tests that differ only in variable names, same assertion shape | Inflates test count without adding real coverage |
+| Tautological assertion | `assertEquals(x, x)` | Static rule; surfaces as surviving mutant |
+| Assertion-free test | Runs, asserts nothing | AST: zero assert/expect calls |
+| Swallowed exception | Empty `catch` block | AST: no-op catch |
+| Skipped test counted as coverage | `@Disabled`, `.skip()` left indefinitely | Lint for stale skip annotations |
+| Mock-count-only assertion | Only `verify(mock)` calls | AST + mutation testing on real collaborator |
+| Unreviewed snapshot | `toMatchSnapshot()` auto-regenerated | Grep `.snap` for missing review gate |
+| Disguised flakiness | `sleep`-based waits | Static rule + flaky-quarantine rerun |
+| Copy-pasted duplicate tests | Same shape, renamed vars | Duplication detector (jscpd/PMD-CPD) |
 
-Any pipeline step or test file exhibiting one of these is scored as **non-compliant for that rule**, even if the surrounding metric (pass rate, coverage %, file count) looks healthy.
+### 2.2 Semantic Bypass — the Agent's Real Job
+These execute fine and produce a plausible assertion — the defect is that it doesn't prove what it claims. This is the actual reason an AI reviewer belongs in the pipeline.
+
+| Smell | Example | Why no tool catches it |
+|---|---|---|
+| Hardcoded golden value on mutable data | `.contains('"totalBalance":73936.09')` | Can't know if the literal is a real constant vs. a data snapshot without understanding the field |
+| Status-only assertion on a mutating endpoint | `POST /transfer` asserts only `200` | Requires knowing the endpoint mutates state and no other test checks the effect — a cross-test judgment |
+| Happy-path-only suite | No boundary/negative/authz case | "Is coverage adequate" is holistic, not countable |
+| Wrong-property assertion | Asserts *an* exception was thrown, not the specific business rule | Assertion is real and passes — just checks a weaker property |
+| Control-disabling fixture | `@BeforeEach` auto-approves, so a "fraud gets blocked" test passes with zero blocking logic | Defeat happens in setup, one level above the assertion |
+| Implementation-pinned assertion | Expected value computed by calling the same prod code again | Identical structure to a correct test; only spec-vs-implementation intent tells them apart |
+
+See [Appendix](#appendix--semantic-bypass-glossary) for repo-agnostic definitions. Any 2.1/2.2 smell scores non-compliant for that rule regardless of how healthy surrounding metrics look — the split only changes *who* is expected to catch it.
 
 ---
 
-## 3. Testing Layers (L0–L9)
+## 3. Testing Layers L0–L9
 
-Each layer states: **Objective**, **Where this applies** (mapped to the relevant `hamza_devx` stage/step identifiers), **Rules**, and **Classification** (`Blocker` / `Required` / `Recommended` / `Optional` — defined in Section 6). This charter defines what must be true. It intentionally carries no compliance status — whether a rule is currently Met, Missing, Disabled, or Violated is a fact about a specific pipeline execution at a point in time, not about the charter. Producing and reporting that status is the job of the compliance agent (`Docs/QA_COMPLIANCE_AGENT.md`), which reads this charter and the actual, current pipeline/repository state each time it runs.
+Each layer: Objective, where it runs in `hamza_devx`, and its rules with Classification (`Blocker`/`Required`/`Recommended`/`Optional`) and Enforcement (`Deterministic` = own policy/tool, excluded from agent score; `Judgment` = agent-scored). This charter defines rules only — point-in-time status is the agent's output, not this document's.
 
 ### L0 — Pre-Flight Change Review
-**Objective:** Catch structurally unsafe or under-tested changes before any compute is spent building or deploying.
-**Where this applies:** `Harness_AI_PR_Review` stage → `AI_PR_Review` stepGroup → `Harness_PR_Reviewer` (Agent step).
-**Rules:**
-- `TSC-L0-01` (Recommended): A change that modifies or removes test assertions must be flagged for explicit human attention before merge, not silently approved.
-**Classification:** Recommended.
+*Catch unsafe/under-tested changes before compute is spent.* → `Harness_AI_PR_Review` → `Harness_PR_Reviewer`.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L0-01 | Recommended | Judgment (Agent) | Flag assertion-weakening changes for human attention, don't silently approve |
 
 ### L1 — Software Supply Chain Integrity
-**Objective:** Guarantee provenance and integrity of what gets built and deployed — that the artifact promoted through the pipeline is the exact, traceable thing it claims to be. (Security scanning of that artifact's contents — SAST, SCA, container scanning — is out of scope for this charter; see the Section 1 scope note.)
-**Where this applies:** `build_frontend` and `build_backend` stages → `Supply_Chain_Frontend`/`Supply_Chain_Backend` stepGroups (SBOM generation + keyless signing). *(Note: any static/security-scanning steps present in these stages — e.g. SAST, SCA, container scanning — are out of scope for this charter regardless of whether they are enabled; they belong to a separate security policy gate, not to this testing strategy.)*
-**Rules:**
-- `TSC-L1-01` (Required): Every built image must have an SBOM generated and be signed (keyless or otherwise) before deployment.
-- `TSC-L1-02` (Recommended): SBOM contents should be diffed against the previous build so newly introduced or changed dependencies are surfaced for review, not just generated and archived unread.
-**Classification:** Required for `TSC-L1-01`; Recommended for `TSC-L1-02`.
+*Guarantee provenance of what's built/deployed (contents-scanning is out of scope, §1).* → `build_frontend`/`build_backend` → `Supply_Chain_*` stepGroups.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L1-01 | Required | Deterministic — `build_integrity` policy | SBOM generated + image signed before deploy |
+| TSC-L1-02 | Recommended | Deterministic — tooling gap | SBOM diffed vs. previous build, not just archived unread |
+
+*Zero Judgment rules — this layer doesn't contribute to the agent's score (§6.3).*
 
 ### L2 — Unit Tests
-**Objective:** Verify individual units of business logic in isolation, fast and cheap, with assertions strong enough to fail when logic is actually wrong.
-**Where this applies:** `build_frontend` → `Run_FrontEnd_Unit_Tests` (Jest, JUnit-format report); `build_backend` → `Run_Backen_Unit_Tests` (Maven/JUnit, Surefire reports).
-**Rules:**
-- `TSC-L2-01` (Required): Unit tests must exist and execute successfully on every build for both frontend and backend.
-- `TSC-L2-02` (Required): Code coverage must be collected (Jest `--coverage`, Jacoco for Maven) and reported as a build artifact, even before a threshold is enforced.
-- `TSC-L2-03` (Required): A minimum coverage threshold must be enforced as a build gate once `TSC-L2-02` is in place.
-- `TSC-L2-04` (Blocker): Mutation testing must run (Stryker for frontend, PIT for backend) with a minimum mutation-kill-score gate. This is the primary deterministic proxy for "do these assertions actually verify anything," and is treated as a Blocker because coverage % alone is demonstrably gameable (Section 2).
-- `TSC-L2-05` (Required): No test file may contain a Section-2 smell (tautological assert, assertion-free test, swallowed exception, silently-skipped test).
-- `TSC-L2-06` (Required): Every business-logic function handling money (interest, transfers, fees, rounding) must have at least one boundary/edge-case test (zero, negative, max-value, currency mismatch) in addition to the happy path.
-**Classification:** Blocker for `TSC-L2-04`; Required for the rest.
+*Verify units in isolation with assertions strong enough to fail on real bugs.* → `Run_FrontEnd_Unit_Tests` (Jest), `Run_Backen_Unit_Tests` (Maven/JUnit).
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L2-01 | Required | Deterministic — CI status | Unit tests exist and pass every build |
+| TSC-L2-02 | Required | Deterministic — artifact check | Coverage collected & reported (Jest/Jacoco) |
+| TSC-L2-03 | Required | Deterministic — threshold gate | Minimum coverage % enforced |
+| TSC-L2-04 | Blocker | Deterministic — **tooling gap**, no Stryker/PIT wired | Mutation testing with a kill-score gate — the real proxy for "assertions verify anything," since coverage % alone is gameable |
+| TSC-L2-05 | Required | Deterministic — **tooling gap**, no AST/lint wired | No §2.1 mechanical smell in any test file |
+| TSC-L2-06 | Required | **Judgment (Agent)** | Every money-handling function (interest/transfer/fees/rounding) has a boundary/edge-case test, not just happy path |
 
 ### L3 — Functional / API Integration Tests
-**Objective:** Verify the deployed service behaves correctly end-to-end at the API layer, covering both reads and writes, and that access control actually holds.
-**Where this applies:** `Deploy_Frontend_to_Dev` stage → `Integration_Testing` stepGroup (`it_health`, `it_summary`, `it_accounts`, `it_transactions`, `it_negative_404`, `it_fraud_integration`).
-**Rules:**
-- `TSC-L3-01` (Required): Read endpoints (health, summary, accounts, transactions) must have status + body-content assertions.
-- `TSC-L3-02` (Blocker): Every mutating endpoint (e.g. transfer, account creation) must have an integration test that performs the write **and** re-reads state to confirm the side effect occurred (balances moved by the correct amount, a new record exists, etc.). Status-code-only assertions on a mutating endpoint do not satisfy this rule.
-- `TSC-L3-03` (Blocker): At least one negative authorization test must exist proving a user cannot read or mutate another user's account (e.g. user B requesting user A's account data receives a `403`/`401`, not the data).
-- `TSC-L3-04` (Required): An authenticated session/token lifecycle test must exist (login → access protected resource → expiry or logout → subsequent access denied).
-- `TSC-L3-05` (Recommended): Downstream dependency integration checks (e.g. `it_fraud_integration`) must verify the dependency's *logic output* is sane for at least one non-trivial input, not merely that it is reachable (`"integration":"ok"` alone is insufficient).
-**Classification:** Blocker for `TSC-L3-02/03`; Required for `TSC-L3-01/04`; Recommended for `TSC-L3-05`.
+*Verify the deployed service end-to-end, reads and writes, and that access control holds.* → `Deploy_Frontend_to_Dev` → `Integration_Testing` (`it_health`, `it_summary`, `it_accounts`, `it_transactions`, `it_negative_404`, `it_fraud_integration`).
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L3-01 | Required | Judgment | Read endpoints have status + body-content assertions |
+| TSC-L3-02 | Blocker | Judgment | Every mutating endpoint has a write-then-reread test proving the side effect; status-only doesn't count |
+| TSC-L3-03 | Blocker | Judgment | At least one negative-authz test (user B can't read/mutate user A's data) |
+| TSC-L3-04 | Required | Judgment | Session/token lifecycle test (login → access → expiry/logout → denied) |
+| TSC-L3-05 | Recommended | Judgment | Downstream dependency checks verify logic output, not just reachability |
+
+*All five rules are Judgment — this is where the agent earns its keep, hence L3's 18% weight (§6.2).*
 
 ### L4 — Contract & Data Compatibility Tests
-**Objective:** Verify API response shapes are stable across services/versions without coupling tests to specific data values.
-**Where this applies:** `Deploy_to_SIT` stage → `Contract_and_Compatibility_Testing` stepGroup (`sit_data_integrity_balance`, `sit_data_integrity_mortgage`, `sit_contract_summary`, `sit_contract_accounts`, `sit_negative_404`).
-**Rules:**
-- `TSC-L4-01` (Required): Contract tests must assert on response **shape/keys present** (e.g. checking for `accountCount`, `totalBalance`, `mortgageCount`, `totalMortgageOutstanding` keys) rather than on literal values.
-- `TSC-L4-02` (Blocker): No contract or "data integrity" test may hardcode a literal data value that is expected to change over the system's normal lifecycle (e.g. asserting an exact `"totalBalance": 73936.09`). Such assertions must be rewritten as a range/tolerance check, a computed-invariant check (see `TSC-L8-01`), or a shape check.
-- `TSC-L4-03` (Recommended): Where two services communicate directly (frontend↔backend, backend↔fraud-check), a consumer-driven contract test (e.g. Pact) should verify the interaction contract independent of the running environment's data state.
-**Classification:** Blocker for `TSC-L4-02`; Required for `TSC-L4-01`; Recommended for `TSC-L4-03`.
+*Verify response shapes are stable without coupling to specific data values.* → `Deploy_to_SIT` → `Contract_and_Compatibility_Testing`.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L4-01 | Required | Judgment | Asserts on shape/keys present, not literal values |
+| TSC-L4-02 | Blocker | Judgment | No hardcoded literal expected to change over the system's lifecycle (e.g. exact `totalBalance`) — must be a range/invariant/shape check |
+| TSC-L4-03 | Recommended | Deterministic — tooling gap, no Pact-style tool | Consumer-driven contract test between directly-communicating services |
 
 ### L5 — Non-Functional: Performance & Load
-**Objective:** Verify the system meets latency/throughput expectations under realistic load, and that performance doesn't silently regress release over release.
-**Where this applies:** `Deploy_to_SIT` (`LoadTest`), `Deploy_to_staging` → `Resilience_Gate` (`Staging_LoadTest`), `Deploy_to_Prod` → `CV` stepGroup (`LoadTest`).
-**Rules:**
-- `TSC-L5-01` (Required): A load test must run at SIT, Staging, and Prod-canary stages.
-- `TSC-L5-02` (Recommended): Load test results should be compared against a stored baseline/trend, not evaluated as a standalone pass/fail with no regression context.
-**Classification:** Required for `TSC-L5-01`; Recommended for `TSC-L5-02`.
+*Verify latency/throughput under load without silent regression.* → `LoadTest` at SIT/Staging/Prod-canary.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L5-01 | Required | Deterministic — `performance_tests` policy | Load test runs at SIT, Staging, Prod-canary |
+| TSC-L5-02 | Recommended | Deterministic — tooling gap, mocked today | Results compared to a stored baseline, not standalone pass/fail |
+
+*Zero Judgment rules — doesn't contribute to the agent's score.*
 
 ### L6 — Resilience & Chaos
-**Objective:** Verify the system degrades gracefully and recovers when infrastructure fails, not just when the application logic is exercised normally.
-**Where this applies:** `Deploy_to_staging` → `Resilience_Gate` stepGroup (Chaos experiment(s) against the running deployment).
-**Rules:**
-- `TSC-L6-01` (Required): At least one chaos experiment must run before production promotion.
-- `TSC-L6-02` (Recommended): The resilience score bar used to gate a chaos experiment should be deliberately justified and periodically reviewed, not left at an arbitrary or default value.
-- `TSC-L6-03` (Recommended): Fault types beyond pod deletion (network latency injection, dependency timeout/unavailability — especially to downstream services like fraud-check) should be added to the resilience suite.
-**Classification:** Required for `TSC-L6-01`; Recommended for `TSC-L6-02/03`.
+*Verify graceful degradation/recovery under infra failure.* → `Deploy_to_staging` → `Resilience_Gate`.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L6-01 | Required | Deterministic | At least one chaos experiment before prod promotion |
+| TSC-L6-02 | Recommended | **Judgment** | Resilience score bar is deliberately justified & periodically reviewed, not arbitrary |
+| TSC-L6-03 | Recommended | Deterministic | Fault types beyond pod-deletion (latency injection, dependency timeout, esp. fraud-check) |
 
 ### L7 — Progressive Delivery & Production Verification
-**Objective:** Verify a production canary is both operationally healthy and functionally correct before it receives full traffic.
-**Where this applies:** `Deploy_to_Prod` stage → `canaryDeployment` stepGroup → `CV` stepGroup (Continuous Verification against metrics) + `LoadTest`.
-**Rules:**
-- `TSC-L7-01` (Required): Statistical/metrics-based canary verification (error rate, latency anomaly detection) must run during every production canary.
-- `TSC-L7-02` (Blocker): A functional smoke check (equivalent to the Dev/SIT read-path pattern) must run against the canary and/or immediately post-full-rollout in Production. Metrics-only verification is not sufficient — a functionally broken build can clear every metrics gate as long as latency and error-rate stay within bounds.
-- `TSC-L7-03` (Recommended): Business KPI comparison (transaction success rate, fraud false-positive rate) between the canary slice and baseline should run alongside the infrastructure-metric CV.
-**Classification:** Blocker for `TSC-L7-02`; Required for `TSC-L7-01`; Recommended for `TSC-L7-03`.
+*Verify a canary is operationally healthy AND functionally correct before full traffic.* → `Deploy_to_Prod` → `canaryDeployment` / `CV` / `LoadTest`.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L7-01 | Required | Deterministic — CV status | Statistical canary verification (error rate, latency anomaly) runs |
+| TSC-L7-02 | Blocker | **Judgment** | A functional smoke check runs against the canary — metrics-only can pass while functionally broken |
+| TSC-L7-03 | Recommended | **Judgment** | Business KPI comparison (txn success, fraud false-positive rate) vs. baseline |
 
 ### L8 — Data & Compliance Integrity
-**Objective:** Verify the system's data and audit trail are correct at rest, independent of what any API response claims — this is the layer HTTP-shaped testing structurally cannot cover, and it is the highest-consequence layer for a banking domain.
-**Where this applies:** Post-deployment verification, independent of any API/HTTP-layer test.
-**Rules:**
-- `TSC-L8-01` (Blocker): A ledger/database invariant check must run post-deploy verifying fundamental conservation properties (e.g. `SUM(debits) == SUM(credits)`, no orphaned transaction records, no negative balance where the product does not permit overdraft) via direct query, independent of the API layer.
-- `TSC-L8-02` (Blocker): An audit-trail verification test must run confirming that a real transaction (e.g. the `TSC-L3-02` mutating test) produces a correct, complete audit/compliance log entry (who, when, amount, before/after balance).
-**Classification:** Blocker for both rules.
+*Verify data/audit trail at rest — the layer HTTP-shaped testing structurally can't cover; highest-consequence for banking.* → post-deploy, independent of API layer.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L8-01 | Blocker | Deterministic — tooling gap, no invariant query wired | Ledger/DB conservation check (`SUM(debits)==SUM(credits)`, no orphans, no disallowed negative balances) via direct query |
+| TSC-L8-02 | Blocker | **Judgment** | Audit-trail entry for a real transaction is correct & complete (who/when/amount/before-after) |
 
 ### L9 — End-to-End & Visual Verification
-**Objective:** Verify the system as a real user actually experiences it — through the real UI, across a full journey — which is a class of defect API-level and unit tests structurally cannot see. (Dynamic security probing, rate-limiting, security headers, and TLS/certificate checks are out of scope for this charter; see the Section 1 scope note.)
-**Where this applies:** Frontend, via browser automation against Dev or SIT.
-**Rules:**
-- `TSC-L9-01` (Recommended): At least one end-to-end browser test (Playwright/Cypress) covering a full user journey (login → view accounts → transfer → view updated balance/history → logout) should run against Dev or SIT.
-- `TSC-L9-02` (Optional): Visual regression testing (screenshot diffing) for the frontend, to catch unintended UI/layout breakage that functional assertions won't detect.
-- `TSC-L9-03` (Optional): Cross-browser/responsive-layout checks for the critical user journeys, given this is a customer-facing banking UI.
-**Classification:** Recommended for `TSC-L9-01`; Optional for `TSC-L9-02/03`.
+*Verify the real user journey through the real UI (dynamic security probing is out of scope, §1).* → browser automation vs. Dev/SIT.
+| Rule | Class | Enforcement | Description |
+|---|---|---|---|
+| TSC-L9-01 | Recommended | **Judgment** | E2E journey (login → accounts → transfer → updated balance/history → logout) — adequacy of coverage is the real question |
+| TSC-L9-02 | Optional | Deterministic | Visual regression (screenshot diffing) wired or not |
+| TSC-L9-03 | Optional | Deterministic | Cross-browser/responsive checks wired or not |
+
+**Tally:** 14 rules Judgment (agent-scored) / 15 Deterministic (policy/tool-owned, several currently tooling gaps). L1 and L5 have zero Judgment rules and don't contribute to the score at all; L3 is all-Judgment, which is why it's weighted heaviest among Judgment-bearing layers.
 
 ---
 
-## 4. Stage-to-Layer Compliance Map
+## 4. Stage-to-Layer Map
 
-This is the literal checklist an automated agent (or a human auditor) should walk through, stage by stage, against the actual pipeline.
-
-| Pipeline stage (`hamza_devx`) | Layers in scope | Rule IDs to evaluate |
+| Pipeline stage (`hamza_devx`) | Layers | Rule IDs |
 |---|---|---|
-| `Harness_AI_PR_Review` | L0 | `TSC-L0-01` |
-| `build_frontend` | L1, L2 | `TSC-L1-01..02`, `TSC-L2-01..06` (frontend subset) |
-| `build_backend` | L1, L2 | `TSC-L1-01..02`, `TSC-L2-01..06` (backend subset) |
-| `Deploy_Frontend_to_Dev` (`Integration_Testing`) | L3 | `TSC-L3-01..05` |
-| `Deploy_to_SIT` (`Contract_and_Compatibility_Testing`) | L4, L5 | `TSC-L4-01..03`, `TSC-L5-01..02` |
-| `Deploy_to_staging` (`Resilience_Gate`) | L5, L6 | `TSC-L5-01..02`, `TSC-L6-01..03` |
-| `Deploy_to_Prod` (`canaryDeployment` / `CV`) | L5, L7 | `TSC-L5-01`, `TSC-L7-01..03` |
-| *(not yet present anywhere)* | L8, L9 | `TSC-L8-01..02`, `TSC-L9-01..03` |
+| `Harness_AI_PR_Review` | L0 | TSC-L0-01 |
+| `build_frontend` / `build_backend` | L1, L2 | TSC-L1-01..02, TSC-L2-01..06 |
+| `Deploy_Frontend_to_Dev` (`Integration_Testing`) | L3 | TSC-L3-01..05 |
+| `Deploy_to_SIT` (`Contract_and_Compatibility_Testing`) | L4, L5 | TSC-L4-01..03, TSC-L5-01..02 |
+| `Deploy_to_staging` (`Resilience_Gate`) | L5, L6 | TSC-L5-01..02, TSC-L6-01..03 |
+| `Deploy_to_Prod` (`canaryDeployment`/`CV`) | L5, L7 | TSC-L5-01, TSC-L7-01..03 |
+| *(not yet present anywhere)* | L8, L9 | TSC-L8-01..02, TSC-L9-01..03 |
 
 ---
 
 ## 5. Promotion Gate Minimum Bars
 
-A build must not be promoted past the named environment unless the stated bar is met. These are the enforceable thresholds this charter expects the pipeline (or the compliance agent, acting as a gate) to check.
+Applies regardless of whether a rule is Deterministic or Judgment — §2/§3's split changes *who computes* status, not whether it's required.
 
 | Promotion | Minimum bar |
 |---|---|
-| **Merge to main** | L0 review complete; L2 unit tests pass; no `TSC-L2-05` smell violations in changed test files |
-| **Dev → SIT** | All L2 Blocker/Required rules met; L3 read-path tests pass; `TSC-L3-02` (mutating-path test) present and passing |
-| **SIT → Staging** | All L4 rules met including `TSC-L4-02` (no hardcoded golden values); L5 load test passes without regression beyond agreed tolerance |
-| **Staging → Prod** | L6 chaos gate passes; `TSC-L3-03` (authz negative test) present and passing |
-| **Canary → 100% Prod traffic** | L7 statistical CV passes **and** `TSC-L7-02` (functional smoke check) passes — CV alone is not sufficient |
+| Merge to main | L0 review complete; L2 unit tests pass; no TSC-L2-05 smells in changed files |
+| Dev → SIT | L2 Blocker/Required met; L3 read-path passes; TSC-L3-02 present & passing |
+| SIT → Staging | L4 met incl. TSC-L4-02; L5 load test passes within tolerance |
+| Staging → Prod | L6 chaos gate passes; TSC-L3-03 present & passing |
+| Canary → 100% | L7 CV passes **and** TSC-L7-02 passes — CV alone insufficient |
 
 ---
 
-## 6. Confidence Scoring Framework
+## 6. Confidence Scoring
 
-This section is the contract the compliance agent must implement literally — it should not invent its own weights or bands.
+The agent must implement this literally, not invent its own weights/bands.
 
-### 6.1 Rule classification and weight
+**Classification effect:** Blocker (Judgment) Missing/Disabled/Violated → score capped at **30** regardless of other layers. Required → 0 for that rule if missing. Recommended → deduction at reduced weight. Optional → presence is a small bonus, absence neutral. (Deterministic Blockers — TSC-L2-04, TSC-L8-01 — cap promotion through their own tool/policy, not through this formula.)
 
-| Classification | Meaning | Effect on score |
-|---|---|---|
-| **Blocker** | Absence/violation makes the release unsafe regardless of anything else | If **any** Blocker rule is Missing/Disabled/Violated, the overall confidence score is capped at **30**, regardless of how well every other layer scores |
-| **Required** | Expected to be met for a compliant release; absence is a significant deduction but not an automatic cap | Contributes to the weighted layer score; a Missing Required rule scores 0 for that rule |
-| **Recommended** | Strengthens confidence; absence is a deduction, not disqualifying | Contributes at reduced weight |
-| **Optional** | Nice to have; absence never penalizes | Bonus only — presence adds a small positive adjustment, absence is neutral |
-
-### 6.2 Layer weights (used only when no Blocker cap is in effect)
-
-| Layer | Weight |
-|---|---|
-| L1 — Software Supply Chain Integrity | 5% |
-| L2 — Unit Tests | 18% |
-| L3 — Functional/API Integration | 18% |
-| L4 — Contract & Compatibility | 8% |
-| L5 — Performance/Load | 7% |
-| L6 — Resilience/Chaos | 12% |
-| L7 — Production Verification | 14% |
-| L8 — Data & Compliance | 15% |
-| L9 — E2E & Visual Verification | 3% |
-
-*(Weights were rebalanced when security-scanning rules were removed from L1 and L9 — see Section 1 scope note. Weight shifted toward the layers that are directly about test/QA quality and resilience: L2, L3, and L6.)*
-
-*(L0 is process, not scored numerically; it is reported as a pass/fail note.)*
-
-### 6.3 Formula (for the compliance agent to implement exactly)
+**Layer weights** (active layers only; rebalanced after removing security-scanning rules, shifted toward L2/L3/L6):
+L1 5% · L2 18% · L3 18% · L4 8% · L5 7% · L6 12% · L7 14% · L8 15% · L9 3%. (L0 is pass/fail, not scored.)
 
 ```
 for each layer L:
-    layer_score(L) = Σ (rule_met ? rule_weight_within_layer : 0) / Σ rule_weight_within_layer   # 0–100
+    J = Judgment-tagged rules in L
+    layer_score(L) = N/A if J empty, else Σ(rule_met ? weight : 0)/Σweight over J   # 0-100
 
-weighted_score = Σ layer_score(L) * layer_weight(L)   # 0–100
+active_layers = layers where layer_score != N/A
+renormalized_weight(L) = layer_weight(L) / Σ layer_weight(active_layers)
+weighted_score = Σ layer_score(L) * renormalized_weight(L)
 
-if any Blocker-classified rule is Missing / Disabled / Violated:
-    confidence_score = min(weighted_score, 30)
-else:
-    confidence_score = weighted_score
+confidence_score = min(weighted_score, 30) if any Judgment Blocker Missing/Disabled/Violated else weighted_score
 ```
 
-### 6.4 Confidence bands
+Deterministic rules (incl. Deterministic Blockers) are never inputs here — they gate promotion independently via their own tool/policy (§5). An unwired Deterministic rule is a **tooling gap**, tracked as such, never folded into the agent's score as a substitute.
 
-| Score | Band | Meaning |
-|---|---|---|
-| 0–39 | **Non-Compliant** | Do not promote. One or more Blocker gaps, or systemic Required-rule absence |
-| 40–69 | **Partially Compliant** | Promotable only with explicit sign-off and a tracked remediation plan |
-| 70–89 | **Substantially Compliant** | Promotable; remaining gaps are Recommended/Optional |
-| 90–100 | **Fully Compliant** | Meets the charter in full |
+**Bands:** 0–39 Non-Compliant (don't promote) · 40–69 Partially Compliant (needs sign-off + remediation plan) · 70–89 Substantially Compliant · 90–100 Fully Compliant (for the Judgment rules this score covers).
 
-These bands and weights are a starting proposal — ratify or adjust them with engineering leadership before the scoring agent is wired into an actual promotion gate (Section 8).
+Bands/weights are a starting proposal pending ratification (§8). This score is deliberately not the full compliance picture — Deterministic rules matter equally and are gated separately.
 
 ---
 
-## 7. Engineer Responsibilities & Definition of Done
+## 7. Engineer Definition of Done
 
-Every engineer touching `banking-app` is responsible for the following before requesting review or merge:
-
-- [ ] Any new or modified business logic (especially anything touching money — interest, transfers, fees) has a unit test satisfying `TSC-L2-05` and, where applicable, `TSC-L2-06`.
-- [ ] Any new or modified API endpoint that **writes** data has an integration test satisfying `TSC-L3-02` — a write-then-verify test, not a status-code check.
-- [ ] Any new or modified endpoint touching another user's data has an authorization test satisfying `TSC-L3-03`.
-- [ ] No test was weakened, skipped, or deleted without an explicit, reviewed justification in the PR description — deleting or loosening an assertion is a **substantive change** and must be called out, not buried in an unrelated diff.
-- [ ] Any assertion added against a live/mutable data value is a shape/range check, not a hardcoded literal (`TSC-L4-02`).
+- [ ] New/modified money logic has a unit test satisfying TSC-L2-05 (and TSC-L2-06 where applicable).
+- [ ] New/modified write endpoint has a write-then-verify integration test (TSC-L3-02), not a status-code check.
+- [ ] New/modified endpoint touching another user's data has an authz test (TSC-L3-03).
+- [ ] No test weakened/skipped/deleted without an explicit, reviewed justification in the PR — this is a substantive change, not a buried diff line.
+- [ ] Any assertion on live/mutable data is a shape/range check, never a hardcoded literal (TSC-L4-02).
 
 ## 8. Governance
 
-- **Ratification:** This draft requires sign-off from engineering leadership before it is treated as binding. Until ratified, it should be socialized as a working proposal.
-- **Ownership:** A named owner (QA/Eng lead) is responsible for keeping this document in sync with the pipeline as stages are added/changed.
-- **Exceptions:** Any team wishing to bypass a Blocker or Required rule for a specific release must document the exception (what, why, expiry date, compensating control) in the PR/change record — silent non-compliance is not an acceptable path.
-- **Change process:** Changes to rule classifications, weights, or bands require review by whoever owns the promotion gate that consumes the resulting confidence score, since those numbers have operational teeth once the scoring agent is live.
-- **Next step:** The compliance agent that reads this charter and assesses actual pipeline execution evidence against it lives separately in `Docs/QA_COMPLIANCE_AGENT.md`. This charter defines the rules only; it deliberately carries no point-in-time compliance status — that is the agent's output, produced fresh against whatever pipeline execution it is pointed at.
+- **Ratification:** binding only after eng leadership sign-off; treat as a working proposal until then.
+- **Ownership:** named QA/Eng lead keeps this in sync with the pipeline, including flipping a rule's Enforcement tag the moment tooling closes a gap — never leaving it parked on the agent.
+- **Exceptions:** bypassing a Blocker/Required rule for a release requires a documented exception (what/why/expiry/compensating control) in the PR — silent non-compliance isn't acceptable.
+- **Change process:** changes to classifications, weights, bands, or Enforcement tags need review by whoever owns the promotion gate consuming the score — moving a rule between Judgment and Deterministic is exactly this kind of change.
+- **Next step:** `Docs/QA_COMPLIANCE_AGENT.md` reads this charter and scores actual pipeline evidence against it, Judgment rules only (v2.0). This document defines rules; it carries no point-in-time status itself.
 
 ---
 
-## Appendix A — Rule ID Index
+## Appendix — Semantic Bypass Glossary
 
-| Rule ID | Layer | Classification | Short description |
-|---|---|---|---|
-| TSC-L0-01 | L0 | Recommended | Flag assertion-weakening changes for human review |
-| TSC-L1-01 | L1 | Required | SBOM + signing present |
-| TSC-L1-02 | L1 | Recommended | SBOM diffed against previous build for review |
-| TSC-L2-01 | L2 | Required | Unit tests exist and run |
-| TSC-L2-02 | L2 | Required | Coverage collected |
-| TSC-L2-03 | L2 | Required | Coverage threshold enforced |
-| TSC-L2-04 | L2 | Blocker | Mutation testing enforced |
-| TSC-L2-05 | L2 | Required | No Section-2 smells in test files |
-| TSC-L2-06 | L2 | Required | Boundary/edge-case tests on money logic |
-| TSC-L3-01 | L3 | Required | Read-endpoint integration coverage |
-| TSC-L3-02 | L3 | Blocker | Mutating-endpoint write+verify test |
-| TSC-L3-03 | L3 | Blocker | Negative authorization test |
-| TSC-L3-04 | L3 | Required | Session/token lifecycle test |
-| TSC-L3-05 | L3 | Recommended | Downstream dependency logic-output check |
-| TSC-L4-01 | L4 | Required | Shape/schema contract checks |
-| TSC-L4-02 | L4 | Blocker | No hardcoded golden-value assertions |
-| TSC-L4-03 | L4 | Recommended | Consumer-driven contract tests |
-| TSC-L5-01 | L5 | Required | Load test present per stage |
-| TSC-L5-02 | L5 | Recommended | Baseline/regression comparison |
-| TSC-L6-01 | L6 | Required | Chaos experiment present |
-| TSC-L6-02 | L6 | Recommended | Resilience bar justified |
-| TSC-L6-03 | L6 | Recommended | Fault types beyond pod-delete |
-| TSC-L7-01 | L7 | Required | Statistical canary verification |
-| TSC-L7-02 | L7 | Blocker | Functional smoke check in Prod |
-| TSC-L7-03 | L7 | Recommended | Business KPI canary comparison |
-| TSC-L8-01 | L8 | Blocker | Ledger/DB invariant check |
-| TSC-L8-02 | L8 | Blocker | Audit-trail verification |
-| TSC-L9-01 | L9 | Recommended | E2E browser journey test |
-| TSC-L9-02 | L9 | Optional | Visual regression testing |
-| TSC-L9-03 | L9 | Optional | Cross-browser/responsive layout check |
+Repo-agnostic reference for §2.2, independent of any specific example:
+
+1. **Wrong-property assertion** — asserts *that something happened* (exception thrown, value returned) but not the *specific* thing that matters. Real, passing, just weaker than required.
+2. **Control-disabling fixture** — shared setup neutralizes the exact mechanism under test (auto-approving mock, always-granted flag) before the test body runs, so it passes whether or not the real control works.
+3. **Implementation-pinned assertion** — expected value is derived from the same code path being tested rather than the spec, so a regression that changes behavior is invisible to the test.
+
+Plus the six deterministic patterns in §2.1 — the full current smell register. A genuinely new smell defaults to Judgment until someone proves a deterministic tool can catch it; the burden is on moving something *out* of the agent's scope.
