@@ -1,7 +1,7 @@
 # Resource name is prefixed with the environment (dev/sit/staging/prod) so names
 # are self-describing across namespaces, e.g. dev-banking-app-frontend.
-name: onboarding-app-frontend
-# name: <+env.name.toLowerCase()>-<+service.name>
+# name: onboarding-app-frontend
+name: <+env.name.toLowerCase()>-<+service.name>
 # name: ${{env.name.toLowerCase()>-<+service.name}}
 
 replicas: 2
@@ -10,8 +10,8 @@ image: <+artifact.image>
 # image: ${{artifact.image }}
 
 createNamespace: true
-namespace: devsecops-deafeninghopehws148
-# namespace: <+infra.namespace>
+# namespace: devsecops-deafeninghopehws148
+namespace: <+infra.namespace>
 # namespace: ${{infra.namespace}}
 
 
@@ -39,8 +39,8 @@ ingress:
   # Name + port of the backend Service the /api route points at. Must match the
   # backend's prefixed resource name (<+env.name>-<+service.name>), e.g.
   # dev-banking-app-backend. Same env, so <+env.name> resolves identically here.
-  backendServiceName: onboarding-app-backend
-  # backendServiceName: <+env.name.toLowerCase()>-banking-app-backend
+  # backendServiceName: onboarding-app-backend
+  backendServiceName: <+env.name.toLowerCase()>-banking-app-backend
   backendServicePort: 8080
 
 livenessPath: /healthz
