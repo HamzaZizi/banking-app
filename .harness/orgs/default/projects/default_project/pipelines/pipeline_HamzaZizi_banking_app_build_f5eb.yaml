@@ -1,0 +1,82 @@
+pipeline:
+  id: pipeline_HamzaZizi_banking_app_build_f5eb
+  name: pipeline_HamzaZizi_banking_app_build_f5eb
+  stages:
+    - parallel:
+        stages:
+          - name: Backend Tests
+            id: backend_tests
+            clone:
+              enabled: true
+            runtime: cloud
+            platform:
+              os: linux
+              arch: amd64
+            cache:
+              enabled: true
+            build-intelligence:
+              enabled: true
+            steps:
+              - name: Verify Java
+                id: verify_java
+                run:
+                  shell: bash
+                  script: |-
+                    echo "Java version:"
+                    java -version
+                    echo "JAVA_HOME: $JAVA_HOME"
+              - name: Build and Test Backend
+                id: backend_test
+                run:
+                  shell: bash
+                  script: |-
+                    cd backend
+                    mvn test -DfailIfNoTests=false -B
+                  report:
+                    type: junit
+                    paths:
+                      - backend/target/surefire-reports/*.xml
+          - name: Frontend Tests
+            id: frontend_tests
+            clone:
+              enabled: true
+            runtime: cloud
+            platform:
+              os: linux
+              arch: amd64
+            cache:
+              enabled: true
+            steps:
+              - name: Verify Node
+                id: verify_node
+                run:
+                  shell: bash
+                  script: |-
+                    echo "Node version:"
+                    node --version
+                    echo "npm version:"
+                    npm --version
+              - name: Install Dependencies
+                id: frontend_install
+                run:
+                  shell: bash
+                  script: |-
+                    cd frontend
+                    npm ci
+              - name: Run Frontend Tests
+                id: frontend_test
+                run:
+                  shell: bash
+                  script: |-
+                    cd frontend
+                    mkdir -p .harness/reports
+                    npm install --no-save jest-junit
+                    JEST_JUNIT_OUTPUT_DIR=.harness/reports \
+                    JEST_JUNIT_OUTPUT_NAME=junit.xml \
+                    npx jest --ci --runInBand --reporters=default --reporters=jest-junit
+                  report:
+                    type: junit
+                    paths:
+                      - frontend/.harness/reports/junit.xml
+  tags:
+    onboarding: "true"
