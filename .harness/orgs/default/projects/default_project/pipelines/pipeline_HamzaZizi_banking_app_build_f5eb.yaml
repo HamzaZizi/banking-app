@@ -20,6 +20,8 @@ pipeline:
               - name: Verify Java
                 id: verify_java
                 run:
+                  container:
+                    image: maven:3.9-eclipse-temurin-17
                   shell: bash
                   script: |-
                     echo "Java version:"
@@ -28,6 +30,8 @@ pipeline:
               - name: Build and Test Backend
                 id: backend_test
                 run:
+                  container:
+                    image: maven:3.9-eclipse-temurin-17
                   shell: bash
                   script: |-
                     cd backend
