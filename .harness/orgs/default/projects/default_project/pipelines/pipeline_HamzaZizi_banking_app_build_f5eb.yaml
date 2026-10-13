@@ -89,5 +89,33 @@ pipeline:
                     type: junit
                     paths:
                       - frontend/.harness/reports/junit.xml
+    - name: Security Scans
+      id: security_scans
+      description: Open-source SAST, secrets, dependency and filesystem scans after the build and tests.
+      clone:
+        enabled: true
+      runtime: cloud
+      platform:
+        os: linux
+        arch: amd64
+      steps:
+        - parallel:
+            steps:
+              - name: Semgrep SAST
+                id: semgrep_sast
+                template:
+                  uses: semgrepStep
+              - name: Gitleaks Secrets Scan
+                id: gitleaks_secrets
+                template:
+                  uses: gitleaksStep
+              - name: OSV Dependency Scan
+                id: osv_sca
+                template:
+                  uses: osvStep
+              - name: Trivy Filesystem Scan
+                id: trivy_fs
+                template:
+                  uses: aquaTrivyStep
   tags:
     onboarding: "true"
