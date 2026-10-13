@@ -1,6 +1,13 @@
 pipeline:
   id: pipeline_HamzaZizi_banking_app_build_f5eb
   name: pipeline_HamzaZizi_banking_app_build_f5eb
+  clone:
+    enabled: true
+    connector: connector_Github_c515
+    repo: HamzaZizi/banking-app
+    ref:
+      type: branch
+      name: main
   stages:
     - parallel:
         stages:
