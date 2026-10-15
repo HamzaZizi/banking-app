@@ -1,9 +1,19 @@
 pipeline:
+  id: banking_app_pipeline
+  name: banking-app-pipeline
+  description: Builds and tests the banking-app Java Maven backend on Harness Cloud.
+  tags:
+    ai_generated: ""
+  clone:
+    enabled: true
+    connector: connector_Github_b6d0
+    repo: HamzaZizi/banking-app
+    ref:
+      type: branch
+      name: main
   stages:
     - id: javaMavenBuildTestHostedLinuxStage_1
       name: Java Maven Build and Test on Harness Cloud (Linux)
-      clone:
-        enabled: true
       cache:
         enabled: true
       build-intelligence:
@@ -17,13 +27,16 @@ pipeline:
           name: Build on Linux
           run:
             shell: bash
-            script: mvn -B -DskipTests package
+            script: |-
+              cd backend
+              mvn -B -DskipTests package
         - id: testLinux
           name: Test on Linux
           run-test:
             shell: bash
             script: |-
               set -eu
+              cd backend
               mvn -B test -Dmaven.build.cache.skipCache=true
               mvn -B jacoco:report || echo "JaCoCo is not configured; skipping coverage report generation."
             intelligence:
@@ -32,6 +45,8 @@ pipeline:
           name: Upload Coverage
           run:
             shell: bash
-            script: hcli cov upload
+            script: |-
+              cd backend
+              hcli cov upload
             env:
               CI_ENABLE_HCLI_FOR_TESTS: "true"
