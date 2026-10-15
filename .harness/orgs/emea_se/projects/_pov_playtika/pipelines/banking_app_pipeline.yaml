@@ -63,19 +63,22 @@ pipeline:
       cache:
         enabled: true
       steps:
+        - id: frontend_build
+          name: Build Frontend App
+          run:
+            container:
+              image: node:20
+            script: |-
+              cd frontend
+              npm ci && npm run build
         - id: frontend_unit_tests
-          name: Run FrontEnd Unit Tests
+          name: Run Frontend Unit Tests
           run-test:
             container:
               image: node:20
             script: |-
               cd frontend
-              npm install
-              npm install --save-dev jest-junit
-              JEST_JUNIT_OUTPUT_DIR="." JEST_JUNIT_OUTPUT_NAME="junit.xml" npm test -- --reporters=default --reporters=jest-junit
-            report:
-              paths:
-                - frontend/junit.xml
+              npm test
             intelligence:
               disabled: false
         - id: build_push_frontend
