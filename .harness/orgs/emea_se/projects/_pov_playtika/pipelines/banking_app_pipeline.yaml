@@ -1,7 +1,7 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app Java Maven backend on Harness Cloud.
+  description: Builds and tests the banking-app backend (Maven) and frontend (Node) and pushes the frontend image.
   tags:
     ai_generated: ""
   clone:
@@ -54,3 +54,38 @@ pipeline:
               hcli cov upload
             env:
               CI_ENABLE_HCLI_FOR_TESTS: "true"
+    - id: build_frontend
+      name: Build Frontend
+      runtime: cloud
+      platform:
+        os: linux
+        arch: amd64
+      cache:
+        enabled: true
+      steps:
+        - id: frontend_unit_tests
+          name: Run FrontEnd Unit Tests
+          run-test:
+            container:
+              image: node:20
+            script: |-
+              cd frontend
+              npm install
+              npm install --save-dev jest-junit
+              JEST_JUNIT_OUTPUT_DIR="." JEST_JUNIT_OUTPUT_NAME="junit.xml" npm test -- --reporters=default --reporters=jest-junit
+            report:
+              paths:
+                - frontend/junit.xml
+            intelligence:
+              disabled: false
+        - id: build_push_frontend
+          name: Build and Push Frontend
+          build:
+            uses: buildAndPushToDocker
+            with:
+              connector: dockerhub_pov_sim
+              repo: hamzaziziharness/banking-app-frontend
+              tags:
+                - 1.0.<+pipeline.sequenceId>
+              dockerfile: frontend/Dockerfile
+              context: frontend
