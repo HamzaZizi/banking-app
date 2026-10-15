@@ -1,7 +1,8 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend and frontend, pushes both images, and deploys to dev (blue green) and prod (canary).
+  description: Builds and tests the banking-app backend and frontend, pushes both
+    images, and deploys to dev (blue green) and prod (canary).
   tags:
     ai_generated: ""
   clone:
@@ -12,8 +13,8 @@ pipeline:
       type: branch
       name: main
   stages:
-    - id: javaMavenBuildTestHostedLinuxStage_1
-      name: Java Maven Build and Test on Harness Cloud (Linux)
+    - id: Java_Maven_Build_and_Test
+      name: Java Maven Build and Test
       cache:
         enabled: true
       build-intelligence:
@@ -65,7 +66,6 @@ pipeline:
                 - 1.0.<+pipeline.sequenceId>
               dockerfile: backend/Dockerfile
               context: backend
-      if: <+OnPipelineSuccess> && false
     - id: build_frontend
       name: Build Frontend
       runtime: cloud
