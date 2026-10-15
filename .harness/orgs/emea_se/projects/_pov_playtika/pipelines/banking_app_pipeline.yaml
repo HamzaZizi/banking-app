@@ -1,7 +1,8 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend and frontend, pushes both images, and deploys to dev (blue green) and prod (canary).
+  description: Builds and tests the banking-app backend and frontend, pushes both
+    images, and deploys to dev (blue green) and prod (canary).
   tags:
     ai_generated: ""
   clone:
@@ -116,53 +117,18 @@ pipeline:
       id: Deploy_to_Dev
       service:
         type: helm
+        parallel: true
         items:
-          - backend
           - frontend
+          - backend
       environment:
         items:
           - id: dev
             all-infra: true
             deploy-to: <+input>
-      runtime: shell
-      delegate:
-        - emea-se-pov-3.0
-      steps:
-        - name: Helm Blue Green Deploy
-          id: helmBlueGreenDeployStep
-          template:
-            uses: helmBlueGreenDeployStep
-        - name: Helm Blue Green Swap
-          id: helmBlueGreenSwapStep
-          template:
-            uses: helmBlueGreenSwapStep
-      rollback:
-        - group:
-            steps:
-              - name: Helm Blue Green Swap Rollback
-                id: helmBlueGreenSwapStepRollback
-                template:
-                  uses: helmBlueGreenSwapStep
-          id: helmBlueGreenRollback
-          name: Helm Blue Green Rollback
-      on-failure:
-        errors: all
-        action: stage-rollback
-    - name: Deploy to Prod
-      id: Deploy_to_Prod
-      service:
-        type: helm
-        items:
-          - frontend
-          - backend
-      environment:
-        items:
-          - id: prod
-            all-infra: true
-            deploy-to: <+input>
-      runtime: shell
-      delegate:
-        - emea-se-pov-3.0
+      runtime:
+        delegate:
+          - harness-delegate-3.0
       steps:
         - name: Helm Canary Deploy
           id: helmCanaryDeployStep
@@ -181,6 +147,13 @@ pipeline:
       rollback:
         - group:
             steps:
+              - if: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME != ''}}
+                name: Helm Canary Delete Rollback
+                id: helmCanaryDeleteStepRollback
+                template:
+                  uses: helmCanaryDeleteStep
+                  with:
+                    release: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME}}
               - name: Helm Rollback
                 id: helmRollbackStep
                 template:
