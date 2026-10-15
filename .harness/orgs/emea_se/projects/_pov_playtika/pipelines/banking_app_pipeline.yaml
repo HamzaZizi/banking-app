@@ -1,8 +1,7 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend and frontend, pushes both
-    images, and deploys to dev (blue green) and prod (canary).
+  description: Builds and tests the banking-app backend and frontend, pushes both images, and deploys to dev (blue green) and prod (canary).
   tags:
     ai_generated: ""
   clone:
@@ -125,9 +124,9 @@ pipeline:
           - id: dev
             all-infra: true
             deploy-to: <+input>
-      runtime:
-        delegate:
-          - emea-se-pov-3.0
+      runtime: shell
+      delegate:
+        - emea-se-pov-3.0
       steps:
         - name: Helm Blue Green Deploy
           id: helmBlueGreenDeployStep
@@ -161,9 +160,9 @@ pipeline:
           - id: prod
             all-infra: true
             deploy-to: <+input>
-      runtime:
-        delegate:
-          - emea-se-pov-3.0
+      runtime: shell
+      delegate:
+        - emea-se-pov-3.0
       steps:
         - name: Helm Canary Deploy
           id: helmCanaryDeployStep
@@ -182,13 +181,6 @@ pipeline:
       rollback:
         - group:
             steps:
-              - if: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME != ''}}
-                name: Helm Canary Delete Rollback
-                id: helmCanaryDeleteStepRollback
-                template:
-                  uses: helmCanaryDeleteStep
-                  with:
-                    release: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME}}
               - name: Helm Rollback
                 id: helmRollbackStep
                 template:
