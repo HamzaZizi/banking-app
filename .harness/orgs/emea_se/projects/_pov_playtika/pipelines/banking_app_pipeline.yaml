@@ -1,8 +1,7 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend (Maven) and frontend
-    (Node) with coverage and pushes both images.
+  description: Builds and tests the banking-app backend (Maven) and frontend (Node) with coverage and pushes both images.
   tags:
     ai_generated: ""
   clone:
@@ -76,14 +75,14 @@ pipeline:
       cache:
         enabled: true
       steps:
-        - id: frontend_build
-          name: Build Frontend App
+        - id: frontend_install
+          name: Install Frontend Dependencies
           run:
             container:
               image: node:20
             script: |-
               cd frontend
-              npm ci && npm run build
+              npm ci
         - id: frontend_unit_tests
           name: Run Frontend Unit Tests
           run-test:
