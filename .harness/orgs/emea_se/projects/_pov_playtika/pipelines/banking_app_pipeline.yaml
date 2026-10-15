@@ -1,7 +1,7 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend (Maven) and frontend (Node) and pushes the frontend image.
+  description: Builds and tests the banking-app backend (Maven) and frontend (Node) with coverage and pushes both images.
   tags:
     ai_generated: ""
   clone:
@@ -54,6 +54,17 @@ pipeline:
               hcli cov upload
             env:
               CI_ENABLE_HCLI_FOR_TESTS: "true"
+        - id: build_push_backend
+          name: Build and Push Backend
+          build:
+            uses: buildAndPushToDocker
+            with:
+              connector: dockerhub_pov_sim
+              repo: hamzaziziharness/banking-app-backend
+              tags:
+                - 1.0.<+pipeline.sequenceId>
+              dockerfile: backend/Dockerfile
+              context: backend
     - id: build_frontend
       name: Build Frontend
       runtime: cloud
@@ -78,9 +89,18 @@ pipeline:
               image: node:20
             script: |-
               cd frontend
-              npm test
+              npm test -- --coverage
             intelligence:
               disabled: false
+        - id: frontend_coverage
+          name: Upload Frontend Coverage
+          run:
+            shell: bash
+            script: |-
+              cd frontend
+              hcli cov upload
+            env:
+              CI_ENABLE_HCLI_FOR_TESTS: "true"
         - id: build_push_frontend
           name: Build and Push Frontend
           build:
