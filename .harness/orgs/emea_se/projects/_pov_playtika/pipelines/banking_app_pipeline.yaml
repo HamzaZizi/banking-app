@@ -1,7 +1,7 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend (Maven) and frontend (Node) with coverage and pushes both images.
+  description: Builds and tests the banking-app backend and frontend, pushes both images, and deploys to dev (blue green) and prod (canary).
   tags:
     ai_generated: ""
   clone:
@@ -113,3 +113,73 @@ pipeline:
                 - 1.0.<+pipeline.sequenceId>
               dockerfile: frontend/Dockerfile
               context: frontend
+    - id: deploy_dev
+      name: Deploy to Dev
+      service:
+        type: helm
+        items:
+          - frontend
+          - backend
+      environment:
+        items:
+          - id: dev
+            deploy-to: bankingappdev
+      steps:
+        - name: Helm Blue Green Deploy
+          id: helmBlueGreenDeployStep
+          template:
+            uses: helmBlueGreenDeployStep
+        - name: Helm Blue Green Swap
+          id: helmBlueGreenSwapStep
+          template:
+            uses: helmBlueGreenSwapStep
+      rollback:
+        - group:
+            steps:
+              - name: Helm Blue Green Swap Rollback
+                id: helmBlueGreenSwapStepRollback
+                template:
+                  uses: helmBlueGreenSwapStep
+          id: helmBlueGreenRollback
+          name: Helm Blue Green Rollback
+      on-failure:
+        errors: all
+        action: stage-rollback
+    - id: deploy_prod
+      name: Deploy to Prod
+      service:
+        type: helm
+        items:
+          - frontend
+          - backend
+      environment:
+        items:
+          - id: prod
+            deploy-to: bankingappprod
+      steps:
+        - name: Helm Canary Deploy
+          id: helmCanaryDeployStep
+          template:
+            uses: helmCanaryDeployStep
+        - name: Helm Canary Delete
+          id: helmCanaryDeleteStep
+          template:
+            uses: helmCanaryDeleteStep
+            with:
+              release: ${{stage.steps.helmCanaryDeployStep.output.outputVariables.canaryRelease}}
+        - name: Helm Basic Deploy
+          id: helmBasicDeployStep
+          template:
+            uses: helmBasicDeployStep
+      rollback:
+        - group:
+            steps:
+              - name: Helm Rollback
+                id: helmRollbackStep
+                template:
+                  uses: helmRollbackStep
+          id: helmCanaryRollback
+          name: Helm Canary Rollback
+      on-failure:
+        errors: all
+        action: stage-rollback
