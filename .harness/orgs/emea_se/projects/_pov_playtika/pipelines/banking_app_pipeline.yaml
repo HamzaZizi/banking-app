@@ -28,6 +28,9 @@ pipeline:
           run:
             shell: bash
             script: |-
+              export JAVA_HOME=/opt/harness/tools/java/current
+              export PATH="$JAVA_HOME/bin:$PATH"
+              java -version
               cd backend
               mvn -B -DskipTests package
         - id: testLinux
@@ -36,6 +39,8 @@ pipeline:
             shell: bash
             script: |-
               set -eu
+              export JAVA_HOME=/opt/harness/tools/java/current
+              export PATH="$JAVA_HOME/bin:$PATH"
               cd backend
               mvn -B test -Dmaven.build.cache.skipCache=true
               mvn -B jacoco:report || echo "JaCoCo is not configured; skipping coverage report generation."
