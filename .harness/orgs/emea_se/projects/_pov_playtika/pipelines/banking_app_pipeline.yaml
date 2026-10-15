@@ -1,0 +1,37 @@
+pipeline:
+  stages:
+    - id: javaMavenBuildTestHostedLinuxStage_1
+      name: Java Maven Build and Test on Harness Cloud (Linux)
+      clone:
+        enabled: true
+      cache:
+        enabled: true
+      build-intelligence:
+        enabled: true
+      steps:
+        - id: setupJava
+          name: Setup Java
+          template:
+            uses: setupJava@1.0.0
+        - id: buildLinux
+          name: Build on Linux
+          run:
+            shell: bash
+            script: mvn -B -DskipTests package
+        - id: testLinux
+          name: Test on Linux
+          run-test:
+            shell: bash
+            script: |-
+              set -eu
+              mvn -B test -Dmaven.build.cache.skipCache=true
+              mvn -B jacoco:report || echo "JaCoCo is not configured; skipping coverage report generation."
+            intelligence:
+              disabled: true
+        - id: coverage
+          name: Upload Coverage
+          run:
+            shell: bash
+            script: hcli cov upload
+            env:
+              CI_ENABLE_HCLI_FOR_TESTS: "true"
