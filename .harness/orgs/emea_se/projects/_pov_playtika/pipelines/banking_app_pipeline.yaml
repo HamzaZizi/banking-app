@@ -124,14 +124,10 @@ pipeline:
       environment:
         items:
           - id: dev
-            all-infra: true
-            deploy-to: <+input>
+            deploy-to: bankingappdev
       runtime:
         delegate:
           - harness-delegate-3.0
-        kubernetes:
-          namespace: banking-app-dev
-          connector: _pov_sim_k8
       steps:
         - name: Helm Canary Deploy
           id: helmCanaryDeployStep
