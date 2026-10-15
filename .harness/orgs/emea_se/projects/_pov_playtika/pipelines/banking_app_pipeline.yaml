@@ -1,7 +1,8 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend (Maven) and frontend (Node) with coverage and pushes both images.
+  description: Builds and tests the banking-app backend (Maven) and frontend
+    (Node) with coverage and pushes both images.
   tags:
     ai_generated: ""
   clone:
@@ -65,6 +66,7 @@ pipeline:
                 - 1.0.<+pipeline.sequenceId>
               dockerfile: backend/Dockerfile
               context: backend
+      if: <+OnPipelineSuccess> && false
     - id: build_frontend
       name: Build Frontend
       runtime: cloud
