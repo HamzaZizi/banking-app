@@ -165,3 +165,54 @@ pipeline:
       on-failure:
         errors: all
         action: stage-rollback
+    - name: Deploy t prod
+      id: Deploy_t_prod
+      service:
+        type: helm
+        items:
+          - frontend
+          - backend
+      environment:
+        items:
+          - id: prod
+            deploy-to: bankingappprod
+      runtime:
+        kubernetes:
+          namespace: harness-delegate-ng
+          connector: _pov_sim_k8
+        delegate:
+          - emea-se-pov-3.0
+      steps:
+        - name: Helm Canary Deploy
+          id: helmCanaryDeployStep
+          template:
+            uses: helmCanaryDeployStep
+        - name: Helm Canary Delete
+          id: helmCanaryDeleteStep
+          template:
+            uses: helmCanaryDeleteStep
+            with:
+              release: ${{stage.steps.helmCanaryDeployStep.output.outputVariables.canaryRelease}}
+        - name: Helm Basic Deploy
+          id: helmBasicDeployStep
+          template:
+            uses: helmBasicDeployStep
+      rollback:
+        - group:
+            steps:
+              - if: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME != ''}}
+                name: Helm Canary Delete Rollback
+                id: helmCanaryDeleteStepRollback
+                template:
+                  uses: helmCanaryDeleteStep
+                  with:
+                    release: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME}}
+              - name: Helm Rollback
+                id: helmRollbackStep
+                template:
+                  uses: helmRollbackStep
+          id: helmCanaryRollback
+          name: Helm Canary Rollback
+      on-failure:
+        errors: all
+        action: stage-rollback
