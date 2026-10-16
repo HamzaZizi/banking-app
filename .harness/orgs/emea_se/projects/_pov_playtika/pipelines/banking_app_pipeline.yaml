@@ -13,106 +13,119 @@ pipeline:
       type: branch
       name: main
   stages:
-    - id: Java_Maven_Build_and_Test
-      name: Java Maven Build and Test
-      cache:
-        enabled: true
-      build-intelligence:
-        enabled: true
-      steps:
-        - id: setupJava
-          name: Setup Java
-          template:
-            uses: setupJava@1.0.0
-        - id: buildLinux
-          name: Build on Linux
-          run:
-            shell: bash
-            script: |-
-              export JAVA_HOME=/opt/harness/tools/java/current
-              export PATH="$JAVA_HOME/bin:$PATH"
-              java -version
-              cd backend
-              mvn -B -DskipTests package
-        - id: testLinux
-          name: Test on Linux
-          run-test:
-            shell: bash
-            script: |-
-              set -eu
-              export JAVA_HOME=/opt/harness/tools/java/current
-              export PATH="$JAVA_HOME/bin:$PATH"
-              cd backend
-              mvn -B org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.build.cache.skipCache=true
-            intelligence:
-              disabled: true
-        - id: coverage
-          name: Upload Coverage
-          run:
-            shell: bash
-            script: |-
-              cd backend
-              hcli cov upload
-            env:
-              CI_ENABLE_HCLI_FOR_TESTS: "true"
-        - id: build_push_backend
-          name: Build and Push Backend
-          build:
-            uses: buildAndPushToDocker
-            with:
-              connector: dockerhub_pov_sim
-              repo: hamzaziziharness/banking-app-backend
-              tags:
-                - 1.0.<+pipeline.sequenceId>
-              dockerfile: backend/Dockerfile
-              context: backend
-    - id: build_frontend
-      name: Build Frontend
-      runtime: cloud
-      platform:
-        os: linux
-        arch: amd64
-      cache:
-        enabled: true
-      steps:
-        - id: frontend_install
-          name: Install Frontend Dependencies
-          run:
-            container:
-              image: node:20
-            script: |-
-              cd frontend
-              npm ci
-        - id: frontend_unit_tests
-          name: Run Frontend Unit Tests
-          run-test:
-            container:
-              image: node:20
-            script: |-
-              cd frontend
-              npm test -- --coverage
-            intelligence:
-              disabled: false
-        - id: frontend_coverage
-          name: Upload Frontend Coverage
-          run:
-            shell: bash
-            script: |-
-              cd frontend
-              hcli cov upload
-            env:
-              CI_ENABLE_HCLI_FOR_TESTS: "true"
-        - id: build_push_frontend
-          name: Build and Push Frontend
-          build:
-            uses: buildAndPushToDocker
-            with:
-              connector: dockerhub_pov_sim
-              repo: hamzaziziharness/banking-app-frontend
-              tags:
-                - 1.0.<+pipeline.sequenceId>
-              dockerfile: frontend/Dockerfile
-              context: frontend
+    - name: parallel_stage_group_a75c
+      id: parallel_stage_group_a75c
+      parallel:
+        stages:
+          - id: Java_Maven_Build_and_Test
+            name: Java Maven Build and Test
+            cache:
+              enabled: true
+            build-intelligence:
+              enabled: true
+            steps:
+              - id: setupJava
+                name: Setup Java
+                template:
+                  uses: setupJava@1.0.0
+              - id: buildLinux
+                name: Build on Linux
+                run:
+                  shell: bash
+                  script: |-
+                    export JAVA_HOME=/opt/harness/tools/java/current
+                    export PATH="$JAVA_HOME/bin:$PATH"
+                    java -version
+                    cd backend
+                    mvn -B -DskipTests package
+              - id: testLinux
+                name: Test on Linux
+                run-test:
+                  shell: bash
+                  script: |-
+                    set -eu
+                    export JAVA_HOME=/opt/harness/tools/java/current
+                    export PATH="$JAVA_HOME/bin:$PATH"
+                    cd backend
+                    mvn -B org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.build.cache.skipCache=true
+                  intelligence:
+                    disabled: true
+              - id: coverage
+                name: Upload Coverage
+                run:
+                  shell: bash
+                  script: |-
+                    cd backend
+                    hcli cov upload
+                  env:
+                    CI_ENABLE_HCLI_FOR_TESTS: "true"
+              - id: build_push_backend
+                name: Build and Push Backend
+                build:
+                  uses: buildAndPushToDocker
+                  with:
+                    connector: dockerhub_pov_sim
+                    repo: hamzaziziharness/banking-app-backend
+                    tags:
+                      - 1.0.<+pipeline.sequenceId>
+                    dockerfile: backend/Dockerfile
+                    context: backend
+          - id: nodeNpmBuildTestHostedLinuxStage_1
+            name: Node npm Build and Test on Harness Cloud (Linux)
+            clone:
+              enabled: true
+            cache:
+              enabled: true
+            steps:
+              - id: setupNode
+                name: Setup Node
+                template:
+                  uses: setupNode@1.0.0
+              - id: installDependenciesLinux
+                name: Install Dependencies on Linux
+                run:
+                  shell: bash
+                  script: |-
+                    cd frontend
+                    npm ci
+              - id: buildLinux
+                name: Build on Linux
+                run:
+                  shell: bash
+                  script: |-
+                    npm run build --if-present
+              - id: testLinux
+                name: Test on Linux
+                run-test:
+                  shell: bash
+                  script: |-
+                    mkdir -p coverage reports
+                    npx c8 --reporter=lcov --reports-dir=coverage node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=reports/junit-raw.xml
+                    # Node's junit reporter emits testcase nodes directly under testsuites
+                    # with no testsuite wrapper; Harness's parser requires the nested form.
+                    sed -e 's#<testsuites>#<testsuites><testsuite name="node-test">#' -e 's#</testsuites>#</testsuite></testsuites>#' reports/junit-raw.xml > reports/junit.xml
+                  intelligence:
+                    disabled: true
+              - id: coverage
+                name: Upload Coverage
+                run:
+                  shell: bash
+                  script: |-
+                    hcli cov upload
+                  env:
+                    CI_ENABLE_HCLI_FOR_TESTS: "true"
+              - name: Build and Push to Docker
+                id: Build_and_Push_to_Docker
+                build:
+                  uses: buildAndPushToDocker
+                  with:
+                    connector: dockerhub_pov_sim
+                    repo: hamzaziziharness/banking-app-frontend
+                    tags:
+                      - frdes
+                    caching: true
+                    dockerfile: frontend/Dockerfile
+                    context: frontend
     - name: Deploy to Dev
       id: Deploy_to_Dev
       service:
