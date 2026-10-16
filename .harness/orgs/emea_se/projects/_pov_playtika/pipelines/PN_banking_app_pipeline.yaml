@@ -1,0 +1,218 @@
+pipeline:
+  id: PN_banking_app_pipeline
+  name: PN_banking_app_pipeline
+  description: Builds and tests the banking-app backend and frontend, pushes both
+    images, and deploys to dev (blue green) and prod (canary).
+  tags:
+    ai_generated: ""
+  clone:
+    enabled: true
+    connector: connector_Github_b6d0
+    repo: HamzaZizi/banking-app
+    ref:
+      type: branch
+      name: main
+  stages:
+    - id: Java_Maven_Build_and_Test
+      name: Java Maven Build and Test
+      cache:
+        enabled: true
+      build-intelligence:
+        enabled: true
+      steps:
+        - id: setupJava
+          name: Setup Java
+          template:
+            uses: setupJava@1.0.0
+        - id: buildLinux
+          name: Build on Linux
+          run:
+            shell: bash
+            script: |-
+              export JAVA_HOME=/opt/harness/tools/java/current
+              export PATH="$JAVA_HOME/bin:$PATH"
+              java -version
+              cd backend
+              mvn -B -DskipTests package
+        - id: testLinux
+          name: Test on Linux
+          run-test:
+            shell: bash
+            script: |-
+              set -eu
+              export JAVA_HOME=/opt/harness/tools/java/current
+              export PATH="$JAVA_HOME/bin:$PATH"
+              cd backend
+              mvn -B org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.build.cache.skipCache=true
+            intelligence:
+              disabled: true
+        - id: coverage
+          name: Upload Coverage
+          run:
+            shell: bash
+            script: |-
+              cd backend
+              hcli cov upload
+            env:
+              CI_ENABLE_HCLI_FOR_TESTS: "true"
+        - id: build_push_backend
+          name: Build and Push Backend
+          build:
+            uses: buildAndPushToDocker
+            with:
+              connector: dockerhub_pov_sim
+              repo: hamzaziziharness/banking-app-backend
+              tags:
+                - 1.0.<+pipeline.sequenceId>
+              dockerfile: backend/Dockerfile
+              context: backend
+    - id: build_frontend
+      name: Build Frontend
+      runtime: cloud
+      platform:
+        os: linux
+        arch: amd64
+      cache:
+        enabled: true
+      steps:
+        - id: frontend_install
+          name: Install Frontend Dependencies
+          run:
+            container:
+              image: node:20
+            script: |-
+              cd frontend
+              npm ci
+        - id: frontend_unit_tests
+          name: Run Frontend Unit Tests
+          run-test:
+            container:
+              image: node:20
+            script: |-
+              cd frontend
+              npm test -- --coverage
+            intelligence:
+              disabled: false
+        - id: frontend_coverage
+          name: Upload Frontend Coverage
+          run:
+            shell: bash
+            script: |-
+              cd frontend
+              hcli cov upload
+            env:
+              CI_ENABLE_HCLI_FOR_TESTS: "true"
+        - id: build_push_frontend
+          name: Build and Push Frontend
+          build:
+            uses: buildAndPushToDocker
+            with:
+              connector: dockerhub_pov_sim
+              repo: hamzaziziharness/banking-app-frontend
+              tags:
+                - 1.0.<+pipeline.sequenceId>
+              dockerfile: frontend/Dockerfile
+              context: frontend
+    - name: Deploy to Dev
+      id: Deploy_to_Dev
+      service:
+        type: helm
+        parallel: true
+        items:
+          - frontend
+          - backend
+      environment:
+        items:
+          - id: dev
+            deploy-to: bankingappdev
+      runtime:
+        delegate:
+          - harness-delegate-3.0
+        kubernetes:
+          namespace: harness-delegate-ng
+          connector: _pov_sim_k8
+      steps:
+        - name: Helm Canary Deploy
+          id: helmCanaryDeployStep
+          template:
+            uses: helmCanaryDeployStep
+        - name: Helm Canary Delete
+          id: helmCanaryDeleteStep
+          template:
+            uses: helmCanaryDeleteStep
+            with:
+              release: ${{stage.steps.helmCanaryDeployStep.output.outputVariables.canaryRelease}}
+        - name: Helm Basic Deploy
+          id: helmBasicDeployStep
+          template:
+            uses: helmBasicDeployStep
+      rollback:
+        - group:
+            steps:
+              - if: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME != ''}}
+                name: Helm Canary Delete Rollback
+                id: helmCanaryDeleteStepRollback
+                template:
+                  uses: helmCanaryDeleteStep
+                  with:
+                    release: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME}}
+              - name: Helm Rollback
+                id: helmRollbackStep
+                template:
+                  uses: helmRollbackStep
+          id: helmCanaryRollback
+          name: Helm Canary Rollback
+      on-failure:
+        errors: all
+        action: stage-rollback
+    - name: Deploy t prod
+      id: Deploy_t_prod
+      service:
+        type: helm
+        items:
+          - frontend
+          - backend
+      environment:
+        items:
+          - id: prod
+            deploy-to: bankingappprod
+      runtime:
+        kubernetes:
+          namespace: harness-delegate-ng
+          connector: _pov_sim_k8
+        delegate:
+          - emea-se-pov-3.0
+      steps:
+        - name: Helm Canary Deploy
+          id: helmCanaryDeployStep
+          template:
+            uses: helmCanaryDeployStep
+        - name: Helm Canary Delete
+          id: helmCanaryDeleteStep
+          template:
+            uses: helmCanaryDeleteStep
+            with:
+              release: ${{stage.steps.helmCanaryDeployStep.output.outputVariables.canaryRelease}}
+        - name: Helm Basic Deploy
+          id: helmBasicDeployStep
+          template:
+            uses: helmBasicDeployStep
+      rollback:
+        - group:
+            steps:
+              - if: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME != ''}}
+                name: Helm Canary Delete Rollback
+                id: helmCanaryDeleteStepRollback
+                template:
+                  uses: helmCanaryDeleteStep
+                  with:
+                    release: ${{rollback.data.PLUGIN_CANARY_RELEASE_NAME}}
+              - name: Helm Rollback
+                id: helmRollbackStep
+                template:
+                  uses: helmRollbackStep
+          id: helmCanaryRollback
+          name: Helm Canary Rollback
+      on-failure:
+        errors: all
+        action: stage-rollback
