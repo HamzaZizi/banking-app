@@ -1,8 +1,4 @@
 pipeline:
-  stages:
-    - name: parallel_stage_group_a75c
-      id: parallel_stage_group_a75c
-      parallel:
         stages:
           - id: Java_Maven_Build_and_Test
             name: Java Maven Build and Test
