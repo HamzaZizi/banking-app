@@ -94,24 +94,13 @@ pipeline:
                   shell: bash
                   script: |-
                     cd frontend
-                    npm run build --if-present
-              - id: testLinux
-                name: Test on Linux
-                run-test:
-                  shell: bash
-                  script: |-
-                    mkdir -p coverage reports
-                    npx c8 --reporter=lcov --reports-dir=coverage node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=reports/junit-raw.xml
-                    # Node's junit reporter emits testcase nodes directly under testsuites
-                    # with no testsuite wrapper; Harness's parser requires the nested form.
-                    sed -e 's#<testsuites>#<testsuites><testsuite name="node-test">#' -e 's#</testsuites>#</testsuite></testsuites>#' reports/junit-raw.xml > reports/junit.xml
-                  intelligence:
-                    disabled: true
+                    npm test -- --coverage
               - id: coverage
                 name: Upload Coverage
                 run:
                   shell: bash
                   script: |-
+                    cd frontend
                     hcli cov upload
                   env:
                     CI_ENABLE_HCLI_FOR_TESTS: "true"
