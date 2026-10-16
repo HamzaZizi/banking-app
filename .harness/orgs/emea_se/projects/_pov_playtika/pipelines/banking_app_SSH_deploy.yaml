@@ -1,44 +1,55 @@
 pipeline:
-        stages:
-          - id: Java_Maven_Build_and_Test
-            name: Java Maven Build and Test
-            cache:
-              enabled: true
-            build-intelligence:
-              enabled: true
-            steps:
-              - id: setupJava
-                name: Setup Java
-                template:
-                  uses: setupJava@1.0.0
-              - id: buildLinux
-                name: Build on Linux
-                run:
-                  shell: bash
-                  script: |-
-                    export JAVA_HOME=/opt/harness/tools/java/current
-                    export PATH="$JAVA_HOME/bin:$PATH"
-                    java -version
-                    cd backend
-                    mvn -B -DskipTests package
-              - id: testLinux
-                name: Test on Linux
-                run-test:
-                  shell: bash
-                  script: |-
-                    set -eu
-                    export JAVA_HOME=/opt/harness/tools/java/current
-                    export PATH="$JAVA_HOME/bin:$PATH"
-                    cd backend
-                    mvn -B org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.build.cache.skipCache=true
-                  intelligence:
-                    disabled: true
-              - id: coverage
-                name: Upload Coverage
-                run:
-                  shell: bash
-                  script: |-
-                    cd backend
-                    hcli cov upload
-                  env:
-                    CI_ENABLE_HCLI_FOR_TESTS: "true"
+  stages:
+    - id: Java_Maven_Build_and_Test
+      name: Java Maven Build and Test
+      cache:
+        enabled: true
+      build-intelligence:
+        enabled: true
+      steps:
+        - id: setupJava
+          name: Setup Java
+          template:
+            uses: setupJava@1.0.0
+        - id: buildLinux
+          name: Build on Linux
+          run:
+            shell: bash
+            script: |-
+              set -eu
+              export JAVA_HOME=/opt/harness/tools/java/current
+              export PATH="$JAVA_HOME/bin:$PATH"
+              java -version
+              cd backend
+              mvn -B -DskipTests clean package
+              ls -l target/*.jar
+        - id: testLinux
+          name: Test on Linux
+          run-test:
+            shell: bash
+            script: |-
+              set -eu
+              export JAVA_HOME=/opt/harness/tools/java/current
+              export PATH="$JAVA_HOME/bin:$PATH"
+              cd backend
+              mvn -B org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.build.cache.skipCache=true
+            intelligence:
+              disabled: true
+        - id: coverage
+          name: Upload Coverage
+          run:
+            shell: bash
+            script: |-
+              cd backend
+              hcli cov upload
+            env:
+              CI_ENABLE_HCLI_FOR_TESTS: "true"
+        - id: uploadJarToS3
+          name: Upload JAR to S3
+          build:
+            uses: uploadArtifactsToS3
+            with:
+              connector: AWS_connector
+              region: eu-west-2
+              bucket: 3.0-emea-pov-sim
+              source: backend/target/*.jar
