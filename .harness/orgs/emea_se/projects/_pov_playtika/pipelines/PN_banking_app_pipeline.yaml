@@ -46,6 +46,9 @@ pipeline:
               mvn -B org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.build.cache.skipCache=true
             intelligence:
               disabled: false
+            report:
+              paths:
+                - backend/target/surefire-reports/*.xml
         - id: coverage
           name: Upload Coverage
           run:
