@@ -90,9 +90,13 @@ pipeline:
               image: node:20
             script: |-
               cd frontend
-              npm test -- --coverage
+              npm install --no-save jest-junit
+              npm test -- --coverage --reporters=default --reporters=jest-junit
             intelligence:
               disabled: false
+            report:
+              paths:
+                - frontend/junit.xml
         - id: frontend_coverage
           name: Upload Frontend Coverage
           run:
