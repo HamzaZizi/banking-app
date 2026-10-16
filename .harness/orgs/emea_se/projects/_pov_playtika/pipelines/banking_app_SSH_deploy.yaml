@@ -1,4 +1,11 @@
 pipeline:
+  clone:
+    enabled: true
+    connector: connector_Github_b6d0
+    repo: HamzaZizi/banking-app
+    ref:
+      type: branch
+      name: main
   stages:
     - id: Java_Maven_Build_and_Test
       name: Java Maven Build and Test
