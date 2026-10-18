@@ -56,11 +56,11 @@ pipeline:
           run:
             container:
               image: amazon/aws-cli
+            env:
+              AWS_SESSION_TOKEN: ${{ secrets.getValue("aws_session_token") }}
+              AWS_ACCESS_KEY_ID: ${{ secrets.getValue("aws_access_key") }}
+              AWS_SECRET_ACCESS_KEY: ${{ secrets.getValue("aws_secret_key") }}
+              AWS_DEFAULT_REGION: eu-west-2
             script: |-
-              export AWS_SESSION_TOKEN=${{ secrets.getValue("aws_session_token") }}
-              export AWS_ACCESS_KEY_ID=${{ secrets.getValue("aws_access_key") }}
-              export AWS_SECRET_ACCESS_KEY=${{ secrets.getValue("aws_secret_key") }}
-              export AWS_DEFAULT_REGION=eu-west-2
-
               aws s3 cp backend/target/ci-banking-backend-1.0.0.jar \
                 s3://3.0-emea-pov-sim/backend/target/ci-banking-backend-1.0.0.jar
