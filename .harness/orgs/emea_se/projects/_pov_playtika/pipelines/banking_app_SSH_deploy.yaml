@@ -54,7 +54,7 @@ pipeline:
         - name: Upload JAR to S3
           id: Upload_JAR_to_S3
           build:
-            uses: uploadArtifactsToS3
+            uses: uploadArtifactsToS3@1.1.0
             with:
               connector: AWS_connector
               region: eu-west-2
