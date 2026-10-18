@@ -53,10 +53,14 @@ pipeline:
               CI_ENABLE_HCLI_FOR_TESTS: "true"
         - id: uploadJarToS3
           name: Upload JAR to S3
-          build:
-            uses: uploadArtifactsToS3@1.1.0
-            with:
-              connector: AWS_connector
-              region: eu-west-2
-              bucket: 3.0-emea-pov-sim
-              source: backend/target/*.jar
+          run:
+            container:
+              image: amazon/aws-cli
+            script: |-
+              export AWS_SESSION_TOKEN=${{ secrets.getValue("aws_session_token") }}
+              export AWS_ACCESS_KEY_ID=${{ secrets.getValue("aws_access_key") }}
+              export AWS_SECRET_ACCESS_KEY=${{ secrets.getValue("aws_secret_key") }}
+              export AWS_DEFAULT_REGION=eu-west-2
+
+              aws s3 cp backend/target/ci-banking-backend-1.0.0.jar \
+                s3://3.0-emea-pov-sim/backend/target/ci-banking-backend-1.0.0.jar
