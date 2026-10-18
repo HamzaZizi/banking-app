@@ -60,6 +60,7 @@ pipeline:
               region: eu-west-2
               bucket: 3.0-emea-pov-sim
               source: backend/target/*.jar
+          if: <+OnPipelineSuccess> && false
         - id: uploadJarToS3
           name: Upload JAR to S3
           run:
@@ -82,4 +83,3 @@ pipeline:
 
               aws s3 cp backend/target/ci-banking-backend-1.0.0.jar \
                 s3://3.0-emea-pov-sim/backend/target/ci-banking-backend-1.0.0.jar
-          if: <+OnPipelineSuccess> && false
