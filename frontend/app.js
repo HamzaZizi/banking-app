@@ -600,7 +600,17 @@ function setupDrawer() {
     if (bell) bell.addEventListener("click", openNotifications);
 }
 
+// Minimum time the startup spinner stays on screen, so the demo always shows it
+// even when the API responds instantly.
+const LOADER_MIN_MS = 3000;
+
+function hideAppLoader() {
+    const loader = document.getElementById("app-loader");
+    if (loader) loader.classList.add("hidden");
+}
+
 async function init() {
+    const loaderDelay = new Promise((resolve) => setTimeout(resolve, LOADER_MIN_MS));
     setupTabs();
     setupDrawer();
     try {
@@ -624,6 +634,10 @@ async function init() {
         console.error(err);
         document.getElementById("accounts-list").innerHTML =
             '<p class="error">Could not reach the C&amp;I Banking API. Check the backend is running.</p>';
+    } finally {
+        // Always clear the overlay, success or failure, but never before 3s.
+        await loaderDelay;
+        hideAppLoader();
     }
 }
 

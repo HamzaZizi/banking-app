@@ -23,6 +23,60 @@ body {
     color: var(--text-dark);
 }
 
+/* Startup loading overlay */
+.app-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.app-loader.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.app-loader-spinner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 4px solid var(--border);
+    border-top-color: var(--brand-purple);
+    animation: app-loader-spin 0.8s linear infinite;
+}
+
+@keyframes app-loader-spin {
+    to { transform: rotate(360deg); }
+}
+
+.app-loader-text {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--brand-purple-dark);
+}
+
+.app-loader-sub {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-loader-spinner {
+        animation-duration: 2s;
+    }
+}
+
 /* CVE demo banner */
 .cve-banner {
     display: flex;
