@@ -72,6 +72,10 @@ pipeline:
                     provider: docker
                     container_registry: dockerhub_pov_sim
                     image: hamzaziziharness/banking-app-backend:1.0.<+pipeline.sequenceId>
+                on-failure:
+                  - errors:
+                      - all
+                    action: ignore
               - id: buildLinux
                 name: Build on Linux
                 run:
