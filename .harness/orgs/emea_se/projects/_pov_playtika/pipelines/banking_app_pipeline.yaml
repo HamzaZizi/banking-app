@@ -97,6 +97,10 @@ pipeline:
                     hcli cov upload
                   env:
                     CI_ENABLE_HCLI_FOR_TESTS: "true"
+              - name: AI Code Coverage Agent
+                id: AI_Code_Coverage_Agent
+                template:
+                  uses: ca_ai_code_coverage_agent
               - id: build_push_backend
                 name: Build and Push Backend
                 build:
