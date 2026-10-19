@@ -1,8 +1,7 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend and frontend, pushes both
-    images, and deploys to dev (blue green) and prod (canary).
+  description: Builds and tests the banking-app backend and frontend, pushes both images, and deploys to dev (blue green) and prod (canary).
   tags:
     ai_generated: ""
   clone:
@@ -62,22 +61,24 @@ pipeline:
                           memory: 500Mi
                           cpu: "0.5"
                           loglevel: info
-                name: Security stage
-                id: Security_stage
-              - id: SBOM_Policy_Enforcement
-                name: SBOM Policy Enforcement
-                template:
-                  uses: sbomEnforcementStep
-                  with:
-                    policy_set_ref: sbom_block_eol_dependencies
-                    source: third-party
-                    provider: docker
-                    container_registry: dockerhub_pov_sim
-                    image: hamzaziziharness/banking-app-backend:1.0.<+pipeline.sequenceId>
-                on-failure:
-                  - errors:
+              - group:
+                  id: SBOM_Policy_Enforcement_Group
+                  name: SBOM Policy Enforcement Group
+                  on-failure:
+                    errors:
                       - all
                     action: ignore
+                  steps:
+                    - id: SBOM_Policy_Enforcement
+                      name: SBOM Policy Enforcement
+                      template:
+                        uses: sbomEnforcementStep
+                        with:
+                          policy_set_ref: sbom_block_eol_dependencies
+                          source: third-party
+                          provider: docker
+                          container_registry: dockerhub_pov_sim
+                          image: hamzaziziharness/banking-app-backend:1.0.<+pipeline.sequenceId>
               - id: buildLinux
                 name: Build on Linux
                 run:
@@ -109,6 +110,18 @@ pipeline:
                     hcli cov upload
                   env:
                     CI_ENABLE_HCLI_FOR_TESTS: "true"
+              - id: coverage_value
+                name: Export Backend Coverage
+                run:
+                  shell: bash
+                  script: |-
+                    set -eu
+                    cd backend
+                    COVERAGE=$(awk -F, 'NR>1{m+=$8;c+=$9} END{if (m+c>0) printf "%.1f", c*100/(m+c); else print "0.0"}' target/site/jacoco/jacoco.csv)
+                    export COVERAGE
+                    echo "Backend line coverage: ${COVERAGE}%"
+                  output:
+                    - name: COVERAGE
               - name: AI Code Coverage Agent
                 id: AI_Code_Coverage_Agent
                 template:
