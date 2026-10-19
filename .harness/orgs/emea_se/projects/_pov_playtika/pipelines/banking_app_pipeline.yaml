@@ -1,7 +1,8 @@
 pipeline:
   id: banking_app_pipeline
   name: banking-app-pipeline
-  description: Builds and tests the banking-app backend and frontend, pushes both images, and deploys to dev (blue green) and prod (canary).
+  description: Builds and tests the banking-app backend and frontend, pushes both
+    images, and deploys to dev (blue green) and prod (canary).
   tags:
     ai_generated: ""
   clone:
@@ -61,6 +62,8 @@ pipeline:
                           memory: 500Mi
                           cpu: "0.5"
                           loglevel: info
+                name: Security checks
+                id: Security_checks
               - group:
                   id: SBOM_Policy_Enforcement_Group
                   name: SBOM Policy Enforcement Group
@@ -79,6 +82,8 @@ pipeline:
                           provider: docker
                           container_registry: dockerhub_pov_sim
                           image: hamzaziziharness/banking-app-backend:1.0.<+pipeline.sequenceId>
+                name: SBOM Policy - EOL
+                id: SBOM_Policy_EOL
               - id: buildLinux
                 name: Build on Linux
                 run:
