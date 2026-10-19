@@ -206,6 +206,7 @@ pipeline:
       on-failure:
         errors: all
         action: stage-rollback
+      if: <+OnPipelineSuccess> && false
     - name: Deploy to prod
       id: Deploy_to_prod
       service:
@@ -257,3 +258,4 @@ pipeline:
       on-failure:
         errors: all
         action: stage-rollback
+      if: <+OnPipelineSuccess> && false
