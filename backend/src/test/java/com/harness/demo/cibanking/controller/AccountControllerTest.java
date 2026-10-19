@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -74,5 +75,75 @@ class AccountControllerTest {
     void getTransactions_returns404ForUnknownAccount() throws Exception {
         mockMvc.perform(get("/api/accounts/unknown/transactions"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getInsights_returnsInsightsForKnownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/acc-001/insights"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId").value("acc-001"))
+                .andExpect(jsonPath("$.transactionCount").exists())
+                .andExpect(jsonPath("$.moneyIn").exists())
+                .andExpect(jsonPath("$.moneyOut").exists())
+                .andExpect(jsonPath("$.net").exists())
+                .andExpect(jsonPath("$.categories").isArray());
+    }
+
+    @Test
+    void getInsights_returns404ForUnknownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/unknown/insights"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getStatements_returnsStatementsForKnownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/acc-001/statements"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].period").exists())
+                .andExpect(jsonPath("$[0].transactionCount").exists())
+                .andExpect(jsonPath("$[0].moneyIn").exists())
+                .andExpect(jsonPath("$[0].moneyOut").exists());
+    }
+
+    @Test
+    void getStatements_returns404ForUnknownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/unknown/statements"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateNickname_updatesNicknameForKnownAccount() throws Exception {
+        mockMvc.perform(put("/api/accounts/acc-002/nickname")
+                        .contentType("application/json")
+                        .content("{\"nickname\": \"My Savings\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("acc-002"))
+                .andExpect(jsonPath("$.nickname").value("My Savings"));
+    }
+
+    @Test
+    void updateNickname_returns404ForUnknownAccount() throws Exception {
+        mockMvc.perform(put("/api/accounts/unknown/nickname")
+                        .contentType("application/json")
+                        .content("{\"nickname\": \"Test\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateNickname_returns400ForMissingNickname() throws Exception {
+        mockMvc.perform(put("/api/accounts/acc-001/nickname")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateNickname_returns400ForBlankNickname() throws Exception {
+        mockMvc.perform(put("/api/accounts/acc-001/nickname")
+                        .contentType("application/json")
+                        .content("{\"nickname\": \"   \"}"))
+                .andExpect(status().isBadRequest());
     }
 }
