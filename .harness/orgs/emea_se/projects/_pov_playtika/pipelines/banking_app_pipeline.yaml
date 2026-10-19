@@ -28,20 +28,44 @@ pipeline:
                 name: Setup Java
                 template:
                   uses: setupJava@1.0.0
-              - name: OSV
-                id: OSV
-                sto:
-                  uses: osvStep
-                  with:
-                    mode: orchestration
-                    configuration: default
-                    type: repository
-                    detection: auto
-                    workspace: /harness
-                    log_level: info
-                    registry: account.harnessImage
-                    tag: latest
-                    pull_policy: always
+              - name: parallel_group_b00a
+                id: parallel_group_b00a
+                parallel:
+                  steps:
+                    - name: OSV
+                      id: OSV
+                      sto:
+                        uses: osvStep
+                        with:
+                          mode: orchestration
+                          configuration: default
+                          type: repository
+                          detection: auto
+                          workspace: /harness
+                          log_level: info
+                          registry: account.harnessImage
+                          tag: latest
+                          pull_policy: always
+                    - name: SBOM Creation
+                      id: SBOM_Creation
+                      template:
+                        uses: sbomOrchestrationStep
+                        with:
+                          mode: generation
+                          tool: Syft
+                          format: spdx-json
+                          source: third-party
+                          provider: docker
+                          container_registry: dockerhub_pov_sim
+                          image: hamzaziziharness/banking-app-backend:1.0.<+pipeline.sequenceId>
+                          attest: true
+                          attest_type: Keyless
+                          keyless_type: harness
+                          drift: true
+                          driftmethod: last-generated
+                          memory: 500Mi
+                          cpu: "0.5"
+                          loglevel: info
               - id: buildLinux
                 name: Build on Linux
                 run:
@@ -84,26 +108,6 @@ pipeline:
                       - 1.0.<+pipeline.sequenceId>
                     dockerfile: backend/Dockerfile
                     context: backend
-              - name: SBOM Creation
-                id: SBOM_Creation
-                template:
-                  uses: sbomOrchestrationStep
-                  with:
-                    mode: generation
-                    tool: Syft
-                    format: spdx-json
-                    source: third-party
-                    provider: docker
-                    container_registry: dockerhub_pov_sim
-                    image: hamzaziziharness/banking-app-backend:1.0.<+pipeline.sequenceId>
-                    attest: true
-                    attest_type: Keyless
-                    keyless_type: harness
-                    drift: true
-                    driftmethod: last-generated
-                    memory: 500Mi
-                    cpu: "0.5"
-                    loglevel: info
           - id: nodeNpmBuildTestHostedLinuxStage_1
             name: Node npm Build and Test on Harness Cloud (Linux)
             clone:
