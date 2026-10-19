@@ -62,6 +62,8 @@ pipeline:
                           memory: 500Mi
                           cpu: "0.5"
                           loglevel: info
+                name: Security stage
+                id: Security_stage
               - id: SBOM_Policy_Enforcement
                 name: SBOM Policy Enforcement
                 template:
