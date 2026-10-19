@@ -4,10 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -74,5 +75,83 @@ class AccountControllerTest {
     void getTransactions_returns404ForUnknownAccount() throws Exception {
         mockMvc.perform(get("/api/accounts/unknown/transactions"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getInsights_returnsInsightsForKnownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/acc-001/insights"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.accountId").value("acc-001"))
+                .andExpect(jsonPath("$.transactionCount").isNumber())
+                .andExpect(jsonPath("$.moneyIn").exists())
+                .andExpect(jsonPath("$.moneyOut").exists())
+                .andExpect(jsonPath("$.categories").isArray());
+    }
+
+    @Test
+    void getInsights_returns404ForUnknownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/unknown/insights"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getStatements_returnsStatementsForKnownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/acc-001/statements"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", not(empty())))
+                .andExpect(jsonPath("$[0].period").exists())
+                .andExpect(jsonPath("$[0].transactionCount").exists())
+                .andExpect(jsonPath("$[0].moneyIn").exists())
+                .andExpect(jsonPath("$[0].moneyOut").exists());
+    }
+
+    @Test
+    void getStatements_returns404ForUnknownAccount() throws Exception {
+        mockMvc.perform(get("/api/accounts/unknown/statements"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateNickname_renamesAccount() throws Exception {
+        String body = "{\"nickname\": \"My New Account Name\"}";
+
+        mockMvc.perform(put("/api/accounts/acc-002/nickname")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("acc-002"))
+                .andExpect(jsonPath("$.nickname").value("My New Account Name"));
+    }
+
+    @Test
+    void updateNickname_returns404ForUnknownAccount() throws Exception {
+        String body = "{\"nickname\": \"New Name\"}";
+
+        mockMvc.perform(put("/api/accounts/unknown/nickname")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateNickname_returns400WhenNicknameMissing() throws Exception {
+        String body = "{}";
+
+        mockMvc.perform(put("/api/accounts/acc-001/nickname")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateNickname_returns400WhenNicknameBlank() throws Exception {
+        String body = "{\"nickname\": \"   \"}";
+
+        mockMvc.perform(put("/api/accounts/acc-001/nickname")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
     }
 }
