@@ -27,45 +27,40 @@ class NotificationServiceTest {
 
     @Test
     void getUnreadCount_returnsCorrectCount() {
-        long unreadCount = service.getUnreadCount();
-        assertThat(unreadCount).isEqualTo(2);
+        long unread = service.getUnreadCount();
+        assertThat(unread).isEqualTo(2);
     }
 
     @Test
     void markRead_marksNotificationAsRead() {
         Notification before = service.getNotifications().stream()
                 .filter(n -> n.getId().equals("ntf-001"))
-                .findFirst().orElse(null);
-        assertThat(before).isNotNull();
+                .findFirst().orElseThrow();
         assertThat(before.isRead()).isFalse();
 
         Notification result = service.markRead("ntf-001");
         assertThat(result).isNotNull();
         assertThat(result.isRead()).isTrue();
-        assertThat(result.getId()).isEqualTo("ntf-001");
-    }
-
-    @Test
-    void markRead_returnsNullForUnknownId() {
-        Notification result = service.markRead("unknown-id");
-        assertThat(result).isNull();
     }
 
     @Test
     void markRead_decreasesUnreadCount() {
-        long beforeCount = service.getUnreadCount();
-        service.markRead("ntf-001");
-        long afterCount = service.getUnreadCount();
-        assertThat(afterCount).isEqualTo(beforeCount - 1);
+        long before = service.getUnreadCount();
+        service.markRead("ntf-002");
+        long after = service.getUnreadCount();
+        assertThat(after).isEqualTo(before - 1);
     }
 
     @Test
-    void getNotifications_containsExpectedFields() {
-        Notification first = service.getNotifications().get(0);
-        assertThat(first.getId()).isNotNull();
-        assertThat(first.getDate()).isNotNull();
-        assertThat(first.getCategory()).isNotNull();
-        assertThat(first.getTitle()).isNotNull();
-        assertThat(first.getMessage()).isNotNull();
+    void markRead_returnsNullForUnknownId() {
+        assertThat(service.markRead("unknown")).isNull();
+    }
+
+    @Test
+    void markRead_isIdempotentForAlreadyReadNotification() {
+        service.markRead("ntf-003");
+        Notification result = service.markRead("ntf-003");
+        assertThat(result).isNotNull();
+        assertThat(result.isRead()).isTrue();
     }
 }

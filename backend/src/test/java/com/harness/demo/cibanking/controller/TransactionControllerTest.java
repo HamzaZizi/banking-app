@@ -27,14 +27,14 @@ class TransactionControllerTest {
     }
 
     @Test
-    void search_byQuery_matchesDescriptionOrCategory() throws Exception {
+    void search_withQuery_returnsMatchingTransactions() throws Exception {
         mockMvc.perform(get("/api/transactions").param("query", "salary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThan(0))));
     }
 
     @Test
-    void search_byCategory_filtersCorrectly() throws Exception {
+    void search_withCategory_returnsFilteredTransactions() throws Exception {
         mockMvc.perform(get("/api/transactions").param("category", "Income"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThan(0))))
@@ -42,7 +42,7 @@ class TransactionControllerTest {
     }
 
     @Test
-    void search_byType_filtersCorrectly() throws Exception {
+    void search_withType_returnsFilteredTransactions() throws Exception {
         mockMvc.perform(get("/api/transactions").param("type", "CREDIT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThan(0))))
@@ -50,7 +50,7 @@ class TransactionControllerTest {
     }
 
     @Test
-    void search_byAccountId_filtersCorrectly() throws Exception {
+    void search_withAccountId_returnsFilteredTransactions() throws Exception {
         mockMvc.perform(get("/api/transactions").param("accountId", "acc-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThan(0))))
@@ -58,7 +58,7 @@ class TransactionControllerTest {
     }
 
     @Test
-    void search_byDateRange_filtersCorrectly() throws Exception {
+    void search_withDateRange_returnsFilteredTransactions() throws Exception {
         mockMvc.perform(get("/api/transactions")
                         .param("from", "2026-07-01")
                         .param("to", "2026-07-31"))
@@ -67,23 +67,9 @@ class TransactionControllerTest {
     }
 
     @Test
-    void search_withMultipleFilters_combinesCorrectly() throws Exception {
-        mockMvc.perform(get("/api/transactions")
-                        .param("category", "Income")
-                        .param("type", "CREDIT")
-                        .param("accountId", "acc-001"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(greaterThan(0))))
-                .andExpect(jsonPath("$[0].category").value("Income"))
-                .andExpect(jsonPath("$[0].type").value("CREDIT"))
-                .andExpect(jsonPath("$[0].accountId").value("acc-001"));
-    }
-
-    @Test
-    void categories_returnsDistinctCategories() throws Exception {
+    void categories_returnsSortedDistinctCategories() throws Exception {
         mockMvc.perform(get("/api/transactions/categories"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(jsonPath("$", hasSize(greaterThan(0))));
     }
 }

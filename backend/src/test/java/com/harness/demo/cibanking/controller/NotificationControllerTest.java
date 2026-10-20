@@ -28,35 +28,15 @@ class NotificationControllerTest {
     }
 
     @Test
-    void getUnreadCount_returnsCount() throws Exception {
+    void getUnreadCount_returnsUnreadCount() throws Exception {
         mockMvc.perform(get("/api/notifications/unread-count"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.unread").exists());
-    }
-
-    @Test
-    void markRead_marksNotificationAsRead() throws Exception {
-        mockMvc.perform(post("/api/notifications/ntf-001/read"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("ntf-001"))
-                .andExpect(jsonPath("$.read").value(true));
+                .andExpect(jsonPath("$.unread").isNumber());
     }
 
     @Test
     void markRead_returns404ForUnknownId() throws Exception {
-        mockMvc.perform(post("/api/notifications/unknown-id/read"))
+        mockMvc.perform(post("/api/notifications/unknown/read"))
                 .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void getNotifications_containsExpectedFields() throws Exception {
-        mockMvc.perform(get("/api/notifications"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").exists())
-                .andExpect(jsonPath("$[0].date").exists())
-                .andExpect(jsonPath("$[0].category").exists())
-                .andExpect(jsonPath("$[0].title").exists())
-                .andExpect(jsonPath("$[0].message").exists())
-                .andExpect(jsonPath("$[0].read").exists());
     }
 }

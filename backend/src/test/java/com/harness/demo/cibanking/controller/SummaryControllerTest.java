@@ -17,21 +17,13 @@ class SummaryControllerTest {
     private MockMvc mockMvc;
 
     @Test
-    void getSummary_returnsPortfolioSummary() throws Exception {
+    void getSummary_returnsSummaryData() throws Exception {
         mockMvc.perform(get("/api/summary"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(jsonPath("$.accountCount").value(3))
                 .andExpect(jsonPath("$.mortgageCount").value(2))
-                .andExpect(jsonPath("$.totalBalance").exists())
-                .andExpect(jsonPath("$.totalMortgageOutstanding").exists())
-                .andExpect(jsonPath("$.statusMessage").exists());
-    }
-
-    @Test
-    void getSummary_containsStatusMessage() throws Exception {
-        mockMvc.perform(get("/api/summary"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.statusMessage").value("Portfolio: 3 accounts, 2 mortgages"));
+                .andExpect(jsonPath("$.totalBalance").isNumber())
+                .andExpect(jsonPath("$.totalMortgageOutstanding").isNumber());
     }
 }

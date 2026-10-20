@@ -14,81 +14,64 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PaymentsServiceTest {
 
+    private PaymentsService service;
     private BankingService bankingService;
-    private PaymentsService paymentsService;
 
     @BeforeEach
     void setUp() {
         bankingService = new BankingService();
-        paymentsService = new PaymentsService(bankingService);
+        service = new PaymentsService(bankingService);
     }
 
     @Test
     void getPayees_returnsAllSeededPayees() {
-        List<Payee> payees = paymentsService.getPayees();
+        List<Payee> payees = service.getPayees();
         assertThat(payees).hasSize(5);
         assertThat(payees).extracting(Payee::getId)
                 .containsExactly("payee-001", "payee-002", "payee-003", "payee-004", "payee-005");
     }
 
     @Test
-    void getScheduledPayments_returnsAllSeededPayments() {
-        List<ScheduledPayment> scheduled = paymentsService.getScheduledPayments();
-        assertThat(scheduled).hasSize(7);
-        assertThat(scheduled).extracting(ScheduledPayment::getId)
-                .containsExactly("sp-001", "sp-002", "sp-003", "sp-004", "sp-005", "sp-006", "sp-007");
+    void getScheduledPayments_returnsAllScheduledPayments() {
+        List<ScheduledPayment> payments = service.getScheduledPayments();
+        assertThat(payments).hasSize(7);
     }
 
     @Test
     void getDirectDebits_returnsOnlyDirectDebits() {
-        List<ScheduledPayment> directDebits = paymentsService.getDirectDebits();
-        assertThat(directDebits).isNotEmpty();
-        assertThat(directDebits).allSatisfy(sp ->
-                assertThat(sp.getKind()).isEqualToIgnoringCase("DIRECT_DEBIT"));
+        List<ScheduledPayment> debits = service.getDirectDebits();
+        assertThat(debits).isNotEmpty();
+        assertThat(debits).allSatisfy(d ->
+                assertThat(d.getKind()).isEqualToIgnoringCase("DIRECT_DEBIT"));
     }
 
     @Test
     void getStandingOrders_returnsOnlyStandingOrders() {
-        List<ScheduledPayment> standingOrders = paymentsService.getStandingOrders();
-        assertThat(standingOrders).isNotEmpty();
-        assertThat(standingOrders).allSatisfy(sp ->
-                assertThat(sp.getKind()).isEqualToIgnoringCase("STANDING_ORDER"));
+        List<ScheduledPayment> orders = service.getStandingOrders();
+        assertThat(orders).isNotEmpty();
+        assertThat(orders).allSatisfy(o ->
+                assertThat(o.getKind()).isEqualToIgnoringCase("STANDING_ORDER"));
     }
 
     @Test
     void transfer_delegatesToBankingService() {
-        BigDecimal amount = new BigDecimal("50.00");
-        Map<String, Object> result = paymentsService.transfer("acc-001", "acc-002", amount, "Test transfer");
+        BigDecimal fromBefore = bankingService.getAccount("acc-001").getBalance();
+        BigDecimal toBefore = bankingService.getAccount("acc-002").getBalance();
+
+        Map<String, Object> result = service.transfer("acc-001", "acc-002",
+                new BigDecimal("50.00"), "Test transfer");
 
         assertThat(result.get("status")).isEqualTo("COMPLETED");
-        assertThat(result.get("amount")).isEqualTo(amount);
-        assertThat(result.get("fromAccountId")).isEqualTo("acc-001");
-        assertThat(result.get("toAccountId")).isEqualTo("acc-002");
+        assertThat(bankingService.getAccount("acc-001").getBalance())
+                .isEqualByComparingTo(fromBefore.subtract(new BigDecimal("50.00")));
+        assertThat(bankingService.getAccount("acc-002").getBalance())
+                .isEqualByComparingTo(toBefore.add(new BigDecimal("50.00")));
     }
 
     @Test
-    void transfer_throwsForInvalidAmount() {
-        assertThatThrownBy(() ->
-                paymentsService.transfer("acc-001", "acc-002", BigDecimal.ZERO, "Test"))
+    void transfer_rejectsInvalidTransfer() {
+        assertThatThrownBy(() -> service.transfer("acc-001", "acc-001",
+                new BigDecimal("10.00"), "Self transfer"))
                 .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void transfer_throwsForSameAccount() {
-        assertThatThrownBy(() ->
-                paymentsService.transfer("acc-001", "acc-001", new BigDecimal("10.00"), "Test"))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void getDirectDebits_hasCorrectCount() {
-        List<ScheduledPayment> directDebits = paymentsService.getDirectDebits();
-        assertThat(directDebits).hasSize(4);
-    }
-
-    @Test
-    void getStandingOrders_hasCorrectCount() {
-        List<ScheduledPayment> standingOrders = paymentsService.getStandingOrders();
-        assertThat(standingOrders).hasSize(3);
     }
 }

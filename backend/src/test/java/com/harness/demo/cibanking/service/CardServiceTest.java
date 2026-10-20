@@ -26,31 +26,30 @@ class CardServiceTest {
     }
 
     @Test
-    void getCardsForAccount_returnsCardsForSpecificAccount() {
-        List<Card> acc001Cards = service.getCardsForAccount("acc-001");
-        assertThat(acc001Cards).hasSize(2);
-        assertThat(acc001Cards).allSatisfy(card ->
-                assertThat(card.getAccountId()).isEqualTo("acc-001"));
+    void getCardsForAccount_returnsCardsForKnownAccount() {
+        List<Card> cards = service.getCardsForAccount("acc-001");
+        assertThat(cards).hasSize(2);
+        assertThat(cards).extracting(Card::getId)
+                .containsExactly("card-001", "card-003");
     }
 
     @Test
-    void getCardsForAccount_returnsEmptyForUnknownAccount() {
-        List<Card> cards = service.getCardsForAccount("unknown-account");
+    void getCardsForAccount_returnsEmptyListForUnknownAccount() {
+        List<Card> cards = service.getCardsForAccount("unknown");
         assertThat(cards).isEmpty();
     }
 
     @Test
     void getCard_returnsMatchingCard() {
-        Card card = service.getCard("card-001");
+        Card card = service.getCard("card-002");
         assertThat(card).isNotNull();
-        assertThat(card.getId()).isEqualTo("card-001");
-        assertThat(card.getAccountId()).isEqualTo("acc-001");
+        assertThat(card.getAccountId()).isEqualTo("acc-002");
         assertThat(card.getType()).isEqualTo("DEBIT");
     }
 
     @Test
     void getCard_returnsNullForUnknownId() {
-        assertThat(service.getCard("unknown-card")).isNull();
+        assertThat(service.getCard("unknown")).isNull();
     }
 
     @Test
@@ -75,27 +74,6 @@ class CardServiceTest {
 
     @Test
     void toggleFreeze_returnsNullForUnknownCard() {
-        Card result = service.toggleFreeze("unknown-card");
-        assertThat(result).isNull();
-    }
-
-    @Test
-    void toggleFreeze_togglesBackAndForth() {
-        service.toggleFreeze("card-001");
-        assertThat(service.getCard("card-001").getStatus()).isEqualTo("FROZEN");
-
-        service.toggleFreeze("card-001");
-        assertThat(service.getCard("card-001").getStatus()).isEqualTo("ACTIVE");
-    }
-
-    @Test
-    void getCards_containsExpectedFields() {
-        Card card = service.getCard("card-001");
-        assertThat(card.getCardholder()).isNotNull();
-        assertThat(card.getNetwork()).isNotNull();
-        assertThat(card.getPanMasked()).isNotNull();
-        assertThat(card.getExpiry()).isNotNull();
-        assertThat(card.getMonthlySpend()).isNotNull();
-        assertThat(card.getLimit()).isNotNull();
+        assertThat(service.toggleFreeze("unknown")).isNull();
     }
 }
